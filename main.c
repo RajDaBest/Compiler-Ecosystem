@@ -3,12 +3,14 @@
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
 
 #define SUCCESS 1
-#define VM_STACK_CAPACITY 1024
+#define VM_STACK_CAPACITY 128
 #define VM_PROGRAM_CAPACITY 1024
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
+#define MAKE_INST_DUP(rel_addr) {.type = INST_DUP, .operand = (rel_addr)}
 #define MAKE_INST_PLUS {.type = INST_PLUS}
 #define MAKE_INST_MINUS {.type = INST_MINUS}
 #define MAKE_INST_MULT {.type = INST_MULT}
@@ -28,6 +30,7 @@ typedef enum
     TRAP_ILLEGAL_JMP,
     TRAP_ILLEGAL_INST_ACCESS,
     TRAP_NO_HALT_FOUND,
+    TRAP_ILLEGAL_OPERAND,
 } Trap; // exceptions that stop the execution on the virtual machine
 
 const char *trap_as_cstr(Trap trap)
@@ -50,6 +53,8 @@ const char *trap_as_cstr(Trap trap)
         return "TRAP_ILLEGAL_INST_ACCESS";
     case TRAP_NO_HALT_FOUND:
         return "TRAP_NO_HALT_FOUND";
+    case TRAP_ILLEGAL_OPERAND:
+        return "TRAP_ILLEGAL_OPERAND";
     default:
         assert(00 && "trap_as_cstr: Unreachnable");
     }
@@ -60,7 +65,7 @@ typedef __int64_t word;
 typedef enum
 {
     INST_PUSH,   // push a word to the stack top; we assume that our stack grows downwards
-    INST_DUP,
+    INST_DUP,    // duplicates the element at the position stack_top - addr at the top of the stack; stack_top = stack_size - 1
     INST_PLUS,   // add the last element on stack onto the second last element, and remove the last element from the stack
     INST_MINUS,  // subtract the last element on the stack from the second last element, and remove the last element from the stack
     INST_MULT,   // multiply the last element on the stack to the second last element, and remove the last element from the stack
@@ -68,8 +73,8 @@ typedef enum
     INST_JMP,    // unconditional jump
     INST_HALT,   // halt the machine
     INST_JMP_IF, // jump to an address if the last element on the stack is non-zero; do not jump otherwise
-    INST_EQ, // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
-} Inst_Type; // enum for the instruction types
+    INST_EQ,     // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
+} Inst_Type;     // enum for the instruction types
 
 typedef struct
 {
@@ -224,6 +229,23 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
             vm->instruction_pointer++;
         }
         break;
+    case INST_DUP:
+        if (vm->stack_size >= VM_STACK_CAPACITY)
+        {
+            return TRAP_STACK_OVERFLOW;
+        }
+        if (inst.operand < 0)
+        {
+            return TRAP_ILLEGAL_OPERAND;
+        }
+        if ((__int64_t)vm->stack_size - 1 - inst.operand < 0)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+        vm->stack_size++;
+        vm->stack[vm->stack_size - 1] = vm->stack[vm->stack_size - 2 - inst.operand];
+        vm->instruction_pointer++;
+        break;
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
         break;
@@ -258,6 +280,7 @@ int vm_exec_program(VirtualMachine *vm)
             return ret;
             // vm_dump_stack(stderr, &vm);
         }
+        sleep(0.5);
     }
     return SUCCESS;
 }
@@ -276,15 +299,13 @@ void vm_push_inst(VirtualMachine *vm, Inst *inst)
 // VirtualMachine vm = {0}; // zeroes everything in vm (the stack is zeroed to)
 
 static Inst program[] = {
-    MAKE_INST_PUSH(69),
-    MAKE_INST_PUSH(420),
-    MAKE_INST_MULT,
-    MAKE_INST_PUSH(10),
-    MAKE_INST_JMP(89),
-    MAKE_INST_MINUS,
-    MAKE_INST_PUSH(0),
-    MAKE_INST_DIV,
-    // MAKE_INST_HALT,
+    MAKE_INST_PUSH(0), // 0 1 0
+    MAKE_INST_PUSH(1),
+    MAKE_INST_DUP(1),
+    MAKE_INST_DUP(1),
+    MAKE_INST_PLUS,
+    MAKE_INST_JMP(2), 
+    MAKE_INST_HALT, 
 }; // can't call functions in const arrays; so we made the instructions as macros
 
 int main(/* int argc, char **argv */)
