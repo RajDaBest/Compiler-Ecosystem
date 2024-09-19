@@ -13,8 +13,10 @@
 #define MAKE_INST_MINUS {.type = INST_MINUS}
 #define MAKE_INST_MULT {.type = INST_MULT}
 #define MAKE_INST_DIV {.type = INST_DIV}
-#define MAKE_INST_JMP(addr) {.type = INST_JMP, .operand = addr}
+#define MAKE_INST_JMP(addr) {.type = INST_JMP, .operand = (addr)}
 #define MAKE_INST_HALT {.type = INST_HALT}
+#define MAKE_INST_JMP_IF(addr) {.type = INST_JMP_IF, .operand = (addr)}
+#define MAKE_INST_EQ {.type = INST_EQ}
 
 typedef enum
 {
@@ -57,14 +59,17 @@ typedef __int64_t word;
 
 typedef enum
 {
-    INST_PUSH,  // push a word to the stack top; we assume that our stack grows downwards
-    INST_PLUS,  // add the last element on stack onto the second last element, and remove the last element from the stack
-    INST_MINUS, // subtract the last element on the stack from the second last element, and remove the last element from the stack
-    INST_MULT,  // multiply the last element on the stack to the second last element, and remove the last element from the stack
-    INST_DIV,   // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
-    INST_JMP,   // unconditional jump
-    INST_HALT,  // halt the machine
-} Inst_Type;    // enum for the instruction types
+    INST_PUSH,   // push a word to the stack top; we assume that our stack grows downwards
+    INST_DUP,
+    INST_PLUS,   // add the last element on stack onto the second last element, and remove the last element from the stack
+    INST_MINUS,  // subtract the last element on the stack from the second last element, and remove the last element from the stack
+    INST_MULT,   // multiply the last element on the stack to the second last element, and remove the last element from the stack
+    INST_DIV,    // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
+    INST_JMP,    // unconditional jump
+    INST_HALT,   // halt the machine
+    INST_JMP_IF, // jump to an address if the last element on the stack is non-zero; do not jump otherwise
+    INST_EQ, // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
+} Inst_Type; // enum for the instruction types
 
 typedef struct
 {
@@ -100,6 +105,12 @@ const char *inst_type_as_cstr(Inst_Type type)
         return "INST_HALT";
     case INST_JMP:
         return "INST_JMP";
+    case INST_JMP_IF:
+        return "INST_JMP_IF";
+    case INST_EQ:
+        return "INST_EQU";
+    case INST_DUP:
+        return "INST_DUP";
     default:
         assert(0 && "inst_type_as_cstr: unreachable");
         break;
@@ -167,7 +178,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if (vm->stack[vm->stack_size - 1] == 0)
+        if (!vm->stack[vm->stack_size - 1])
         {
             return TRAP_DIV_BY_ZERO;
         }
@@ -184,6 +195,34 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
             return TRAP_ILLEGAL_JMP;
         }
         vm->instruction_pointer = inst.operand;
+        break;
+    case INST_EQ:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+        vm->stack[vm->stack_size - 2] = (vm->stack[vm->stack_size - 1] == vm->stack[vm->stack_size - 2]); // add the last element on the stack to the second last element
+        vm->stack_size -= 1;
+        vm->instruction_pointer++;
+        break;
+    case INST_JMP_IF:
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+        if (inst.operand < 0 || inst.operand >= vm->program_size)
+        {
+            return TRAP_ILLEGAL_JMP;
+        }
+        if (vm->stack[vm->stack_size - 1])
+        {
+            vm->stack_size--;
+            vm->instruction_pointer = inst.operand;
+        }
+        else
+        {
+            vm->instruction_pointer++;
+        }
         break;
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
@@ -217,7 +256,7 @@ int vm_exec_program(VirtualMachine *vm)
         {
             fprintf(stderr, "Trap activated: %s\n", trap_as_cstr(ret));
             return ret;
-            //vm_dump_stack(stderr, &vm);
+            // vm_dump_stack(stderr, &vm);
         }
     }
     return SUCCESS;
@@ -245,7 +284,7 @@ static Inst program[] = {
     MAKE_INST_MINUS,
     MAKE_INST_PUSH(0),
     MAKE_INST_DIV,
-    //MAKE_INST_HALT,
+    // MAKE_INST_HALT,
 }; // can't call functions in const arrays; so we made the instructions as macros
 
 int main(/* int argc, char **argv */)
