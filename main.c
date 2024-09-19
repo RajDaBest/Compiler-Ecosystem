@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #define SUCCESS 1
+#define FAILURE 0
 #define VM_STACK_CAPACITY 128
 #define VM_PROGRAM_CAPACITY 1024
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
@@ -88,8 +89,8 @@ typedef struct // structure defining the actual virtual machine
     size_t stack_size;             // current stack size
     word instruction_pointer;      // the address of the next instruction to be executed
     int halt;
-    Inst program[VM_PROGRAM_CAPACITY];
-    size_t program_size;
+    Inst program[VM_PROGRAM_CAPACITY]; // the actual instruction array
+    size_t program_size; // number of instructions in the program
 } VirtualMachine;
 
 const char *inst_type_as_cstr(Inst_Type type)
@@ -253,11 +254,24 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
     return TRAP_OK;
 }
 
+int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size)
+{
+    if(!program)
+    {
+        fprintf(stderr, "Invalid Pointer to the Instruction Array\n");
+        return FAILURE;
+    }
+    memcpy(vm->program, program, program_size * sizeof(program[0]));
+    vm->program_size = program_size;
+
+    return SUCCESS;
+}
+
 void vm_init(VirtualMachine *vm, Inst *program, size_t program_size)
 {
     vm->stack_size = 0;
     vm->program_size = program_size;
-    memcpy(vm->program, program, program_size * sizeof(Inst));
+    memcpy(vm->program, program, program_size * sizeof(program[0]));
     vm->instruction_pointer = 0;
     vm->halt = 0;
 }
@@ -299,7 +313,7 @@ void vm_push_inst(VirtualMachine *vm, Inst *inst)
 void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path)
 {
     FILE *f = fopen(file_path, "wb");
-    if(!f)
+    if (!f)
     {
         fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno));
         exit(EXIT_FAILURE);
@@ -318,12 +332,52 @@ void vm_save_program_to_file(Inst *program, size_t program_size, const char *fil
 
 void vm_load_program_from_file(VirtualMachine *vm, const char *file_path)
 {
+    long ret;
     FILE *f = fopen(file_path, "rb");
-    if(!f)
+    if (!f)
     {
         fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    if (fseek(f, 0, SEEK_END))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    ret = ftell(f);
+    if (ret == -1)
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    // ret now contains the number of bytes in the file
+
+    assert(ret % sizeof(vm->program[0]) == 0);
+    assert((size_t)ret <= VM_PROGRAM_CAPACITY * sizeof(vm->program[0]));
+
+    if (fseek(f, 0, SEEK_SET))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    vm->program_size = fread(vm->program, sizeof(vm->program[0]), ret / sizeof(vm->program[0]), f);
+    if (ferror(f))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    vm->stack_size = 0;
+    vm->instruction_pointer = 0;
+    vm->halt = 0;
 
     fclose(f);
 }
@@ -336,14 +390,21 @@ static Inst program[] = {
     MAKE_INST_DUP(1),
     MAKE_INST_DUP(1),
     MAKE_INST_PLUS,
-    MAKE_INST_JMP(2), 
-    MAKE_INST_HALT, 
+    MAKE_INST_JMP(2),
+    MAKE_INST_HALT,
 }; // can't call functions in const arrays; so we made the instructions as macros
 
+void vm_load_program_from_memory(VirtualMachine *vm, const char *file_path)
+{
+}
 
 int main()
 {
-    vm_save_program_to_file(program, ARRAY_SIZE(program), "prog.vm");
+    VirtualMachine vm;
+    vm_init(&vm, program, ARRAY_SIZE(program));
+    //vm_save_program_to_file(program, ARRAY_SIZE(program), "./prog.vm");
+    vm_load_program_from_file(&vm, "prog.vm");
+    vm_exec_program(&vm);
 }
 
 int main2(/* int argc, char **argv */)
