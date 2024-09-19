@@ -24,6 +24,8 @@ typedef enum
     TRAP_ILLEGAL_INSTRUCTION,
     TRAP_DIV_BY_ZERO,
     TRAP_ILLEGAL_JMP,
+    TRAP_ILLEGAL_INST_ACCESS,
+    TRAP_NO_HALT_FOUND,
 } Trap; // exceptions that stop the execution on the virtual machine
 
 const char *trap_as_cstr(Trap trap)
@@ -42,6 +44,10 @@ const char *trap_as_cstr(Trap trap)
         return "TRAP_DIV_BY_ZERO";
     case TRAP_ILLEGAL_JMP:
         return "TRAP_ILLEGAL_JMP";
+    case TRAP_ILLEGAL_INST_ACCESS:
+        return "TRAP_ILLEGAL_INST_ACCESS";
+    case TRAP_NO_HALT_FOUND:
+        return "TRAP_NO_HALT_FOUND";
     default:
         assert(00 && "trap_as_cstr: Unreachnable");
     }
@@ -100,7 +106,7 @@ const char *inst_type_as_cstr(Inst_Type type)
     }
 }
 
-void vm_dump(FILE *stream, const VirtualMachine *vm)
+void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
 {
     fprintf(stream, "Stack:\n");
     if (vm->stack_size > 0)
@@ -116,16 +122,17 @@ void vm_dump(FILE *stream, const VirtualMachine *vm)
     }
 }
 
-int vm_execute_inst(VirtualMachine *vm, Inst *inst) // executes the instruction inst on vm
+int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction inst on vm
 {
-    switch (inst->type)
+    Inst inst = vm->program[vm->instruction_pointer];
+    switch (inst.type)
     {
     case INST_PUSH:
         if (vm->stack_size >= VM_STACK_CAPACITY)
         {
             return TRAP_STACK_OVERFLOW;
         }
-        vm->stack[vm->stack_size++] = inst->operand; // push one word onto the stack
+        vm->stack[vm->stack_size++] = inst.operand; // push one word onto the stack
         vm->instruction_pointer++;
         break;
     case INST_PLUS:
@@ -172,11 +179,11 @@ int vm_execute_inst(VirtualMachine *vm, Inst *inst) // executes the instruction 
         vm->halt = 1;
         break;
     case INST_JMP:
-        if (inst->operand < 0 || inst->operand >= vm->program_size)
+        if (inst.operand < 0 || inst.operand >= vm->program_size)
         {
             return TRAP_ILLEGAL_JMP;
         }
-        vm->instruction_pointer = inst->operand;
+        vm->instruction_pointer = inst.operand;
         break;
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
@@ -197,16 +204,20 @@ void vm_init(VirtualMachine *vm, Inst *program, size_t program_size)
 int vm_exec_program(VirtualMachine *vm)
 {
     int ret;
+    if (vm->program[vm->program_size - 1].type != INST_HALT)
+    {
+        return TRAP_NO_HALT_FOUND;
+    }
     while (!vm->halt)
     {
         fprintf(stdout, "%s\n", inst_type_as_cstr(vm->program[vm->instruction_pointer].type));
-        ret = vm_execute_inst(vm, &vm->program[vm->instruction_pointer]);
-        vm_dump(stdout, vm);
+        ret = vm_execute_at_inst_pointer(vm);
+        vm_dump_stack(stdout, vm);
         if (ret != TRAP_OK)
         {
             fprintf(stderr, "Trap activated: %s\n", trap_as_cstr(ret));
             return ret;
-            // vm_dump(stderr, &vm);
+            //vm_dump_stack(stderr, &vm);
         }
     }
     return SUCCESS;
@@ -230,17 +241,21 @@ static Inst program[] = {
     MAKE_INST_PUSH(420),
     MAKE_INST_MULT,
     MAKE_INST_PUSH(10),
-    MAKE_INST_JMP(6),
+    MAKE_INST_JMP(89),
     MAKE_INST_MINUS,
     MAKE_INST_PUSH(0),
-    // MAKE_INST_DIV,
-    MAKE_INST_HALT,
+    MAKE_INST_DIV,
+    //MAKE_INST_HALT,
 }; // can't call functions in const arrays; so we made the instructions as macros
 
 int main(/* int argc, char **argv */)
 {
     VirtualMachine vm;
     vm_init(&vm, program, ARRAY_SIZE(program));
-    vm_exec_program(&vm);
+    int ret = vm_exec_program(&vm);
+    if (ret == TRAP_NO_HALT_FOUND)
+    {
+        fprintf(stderr, "%s\n", trap_as_cstr(TRAP_NO_HALT_FOUND));
+    }
     return EXIT_SUCCESS;
 }
