@@ -206,7 +206,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->halt = 1;
         break;
     case INST_JMP:
-        if (inst.operand < 0 || inst.operand >= vm->program_size)
+        if (inst.operand < 0 || (size_t)inst.operand >= vm->program_size)
         {
             return TRAP_ILLEGAL_JMP;
         }
@@ -226,7 +226,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if (inst.operand < 0 || inst.operand >= vm->program_size)
+        if (inst.operand < 0 || (size_t)inst.operand >= vm->program_size)
         {
             return TRAP_ILLEGAL_JMP;
         }
@@ -304,7 +304,7 @@ int vm_exec_program(VirtualMachine *vm)
             return ret;
             // vm_dump_stack(stderr, &vm);
         }
-        sleep(0.5);
+        // vm_dump_stack(stdout, &vm);
     }
     return SUCCESS;
 }
@@ -394,7 +394,7 @@ void vm_load_program_from_file(VirtualMachine *vm, const char *file_path)
 
 // VirtualMachine vm = {0}; // zeroes everything in vm (the stack is zeroed to)
 
-static Inst program[] = {
+/* static Inst program[] = {
     MAKE_INST_PUSH(0), // 0 1 0
     MAKE_INST_PUSH(1),
     MAKE_INST_DUP(1),
@@ -402,15 +402,16 @@ static Inst program[] = {
     MAKE_INST_PLUS,
     MAKE_INST_JMP(2),
     MAKE_INST_HALT,
-}; // can't call functions in const arrays; so we made the instructions as macros
+}; */
+// can't call functions in const arrays; so we made the instructions as macros
 
 const char *source_code =
-    "push 0\n"
+    "   push      0\n\n"
     "push 1\n"
     "dup 1\n"
     "dup 1\n"
-    "plus\n"
-    "jmp 2\n"
+    "plus  \n"
+    "jmp 2   \n"
     "halt\n"; // these individual strings are concatenated into a single string
 
 // equivalent to const char *source_code = "push 0\npush 1\ndup 1\ndup 1\nplus\njmp 2\nhalt\n";
@@ -435,19 +436,15 @@ String_View sv_chop_by_delim(String_View *sv, const char delim)
     chopped.data = sv->data;
 
     // Loop through until the delimiter or end of string is found
-    while (*(sv->data) != delim)
+    while (sv->count > 0 && *(sv->data) != delim) // if there's no delim at the end; sv.count will be zero and will point to a null byte
     {
         sv->count--;
         chopped.count++;
-        if (*(sv->data) == '\0') // End of string, return chopped part; sv->count is now zero and sv pointst to a NULL byte
-        {
-            return chopped;
-        }
         sv->data++;
     }
 
-    // If delimiter found, chop and move the String_View forward
-    if (*(sv->data) == delim)
+    // If delimiter found and not at the end of the string
+    if (sv->count > 0 && *(sv->data) == delim)
     {
         sv->count--; // Skip the delimiter
         sv->data++;  // Move past the delimiter
@@ -456,12 +453,20 @@ String_View sv_chop_by_delim(String_View *sv, const char delim)
     return chopped;
 }
 
-void sv_trim_left(String_View line)
+void sv_trim_left(String_View *line)
 {
-    while (isspace((int)*(line.data)))
+    while (isspace((int)*(line->data)) && line->count>0)
     {
-        line.data++;
-        line.count--;
+        line->data++;
+        line->count--;
+    }
+}
+
+void sv_trim_right(String_View *line)
+{
+    while (isspace((int)(line->data[line->count - 1])) && line->count > 0)
+    {
+        line->count--;
     }
 }
 
@@ -472,7 +477,7 @@ bool sv_eq(String_View a, String_View b)
         return false;
     }
 
-    for (int i = 0; i < a.count; i++)
+    for (size_t i = 0; i < a.count; i++)
     {
         if (a.data[i] != b.data[i])
         {
@@ -511,35 +516,203 @@ word sv_to_int(String_View *op)
 
 Inst vm_translate_line(String_View line)
 {
-    sv_trim_left(line);
+    sv_trim_left(&line);
     String_View inst_name = sv_chop_by_delim(&line, ' ');
+    printf("%d\n", line.count);
+    sv_trim_left(&line);
+    sv_trim_right(&line);
+    bool has_operand = line.count > 0;
+    // line should point to a null byte now if the instruction doesn't have any operands
+
+    /* for(size_t i = 0; i < inst_name.count; i++)
+    {
+        printf("%c", inst_name.data[i]);
+    } */
+    // printf("%.*s\n", (int)inst_name.count, inst_name.data);
+    // printf("%.*s\n", (int)line.count, line.data);
 
     if (sv_eq(inst_name, cstr_as_sv("push")))
     {
-        sv_trim_left(line);
+        if (!has_operand)
+        {
+            fprintf(stderr, "push requires an operand\n");
+            exit(EXIT_FAILURE);
+        }
         word operand = sv_to_int(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %*.s is not a valid integer\n", (int)line.count, line);
+            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %*.s overflows a 64 bit signed integer\n", (int)line.count, line);
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
         }
 
         return (Inst){.type = INST_PUSH, .operand = operand};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("halt")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "halt doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_HALT};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("dup")))
+    {
+        if (!has_operand)
+        {
+            fprintf(stderr, "dup requires an operand\n");
+            exit(EXIT_FAILURE);
+        }
+        word operand = sv_to_int(&line);
+        if (str_errno == FAILURE)
+        {
+            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        return (Inst){.type = INST_DUP, .operand = operand};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("jmp")))
+    {
+        if (!has_operand)
+        {
+            fprintf(stderr, "jmp requires an operand\n");
+            exit(EXIT_FAILURE);
+        }
+        word operand = sv_to_int(&line);
+        if (str_errno == FAILURE)
+        {
+            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        return (Inst){.type = INST_JMP, .operand = operand};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("jmp_if")))
+    {
+        if (!has_operand)
+        {
+            fprintf(stderr, "jmp_if requires an operand\n");
+            exit(EXIT_FAILURE);
+        }
+        word operand = sv_to_int(&line);
+        if (str_errno == FAILURE)
+        {
+            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        return (Inst){.type = INST_JMP_IF, .operand = operand};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("plus")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "plus doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_PLUS};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("minus")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "minus doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_MINUS};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("mult")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "mult doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_MULT};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("div")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "div doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_DIV};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("eq")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "eq doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_EQ};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("nop")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "nop doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_NOP};
+    }
+    else
+    {
+        fprintf(stderr, "invalid instruction\n");
+        exit(EXIT_FAILURE);
     }
 }
 
 size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity)
 {
+    size_t program_size = 0;
     while (source.count > 0) // source.count is zero if we reach the end of source
     {
+        if (program_size >= program_capacity)
+        {
+            fprintf(stderr, "Program Too Big\n");
+        }
         String_View line = sv_chop_by_delim(&source, '\n');
-        printf("#%.*s#\n", (int)line.count, line.data);
+        // printf("#%.*s#\n", (int)line.count, line.data);
+        program[program_size++] = vm_translate_line(line);
     }
-
-    return 0;
+    return program_size;
 }
 
 char *trim_left(char *str, size_t str_size)
@@ -573,9 +746,12 @@ char *trim_left(char *str, size_t str_size)
 
 int main()
 {
-    // VirtualMachine vm;
-    // vm.program_size = vm_translate_source(cstr_as_sv(source_code), &(vm.program[0]), VM_PROGRAM_CAPACITY);
-
+    VirtualMachine vm;
+    vm.program_size = vm_translate_source(cstr_as_sv(source_code), &(vm.program[0]), VM_PROGRAM_CAPACITY);
+    // printf("%s %d %d %d\n", inst_type_as_cstr(vm.program[0].type), vm.program[0].operand, vm.program_size, vm.instruction_pointer);
+    int ret = vm_exec_program(&vm);
+    // printf("%d\n", ret == TRAP_NO_HALT_FOUND);
+    vm_dump_stack(stdout, &vm);
     char a[] = "12";
     String_View sv = cstr_as_sv(a);
     printf("%d\n", sv_to_int(&sv));
