@@ -9,6 +9,7 @@
 
 #define SUCCESS 1
 #define FAILURE 0
+#define OPERAND_OVERFLOW -1
 #define VM_STACK_CAPACITY 128
 #define VM_PROGRAM_CAPACITY 1024
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
@@ -484,9 +485,9 @@ bool sv_eq(String_View a, String_View b)
 
 int str_errno = SUCCESS;
 
-int sv_to_int(String_View *op)
+word sv_to_int(String_View *op)
 {
-    int num = 0;
+    word num = 0;
     for (size_t i = 0; i < op->count; i++)
     {
         int dig = op->data[i] - '0';
@@ -496,12 +497,12 @@ int sv_to_int(String_View *op)
             return -1;
         }
 
-        /* // Check for overflow before multiplying and adding
-        if (num > (INT_MAX - dig) / 10)
+        // Check for overflow before multiplying and adding
+        if (num > (__INT_LEAST64_MAX__ - dig) / 10)
         {
-            str_errno = FAILURE; // Set error if overflow occurs
+            str_errno = OPERAND_OVERFLOW; // Set error if overflow occurs
             return -1;
-        } */
+        }
 
         num = num * 10 + dig;
     }
@@ -516,11 +517,16 @@ Inst vm_translate_line(String_View line)
     if (sv_eq(inst_name, cstr_as_sv("push")))
     {
         sv_trim_left(line);
-        int operand = sv_to_int(&line);
-        if (!str_errno)
+        word operand = sv_to_int(&line);
+        if (str_errno == FAILURE)
         {
             fprintf(stderr, "ERROR: %*.s is not a valid integer\n", (int)line.count, line);
         }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %*.s overflows a 64 bit signed integer\n", (int)line.count, line);
+        }
+
         return (Inst){.type = INST_PUSH, .operand = operand};
     }
 }
