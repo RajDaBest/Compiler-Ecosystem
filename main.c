@@ -4,6 +4,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #define SUCCESS 1
 #define FAILURE 0
@@ -20,6 +21,7 @@
 #define MAKE_INST_HALT {.type = INST_HALT}
 #define MAKE_INST_JMP_IF(addr) {.type = INST_JMP_IF, .operand = (addr)}
 #define MAKE_INST_EQ {.type = INST_EQ}
+#define MAKE_INST_NOP {.type = INST_NOP}
 
 typedef enum
 {
@@ -65,17 +67,18 @@ typedef __int64_t word;
 
 typedef enum
 {
-    INST_PUSH,   // push a word to the stack top; we assume that our stack grows downwards
-    INST_DUP,    // duplicates the element at the position stack_top - addr at the top of the stack; stack_top = stack_size - 1
-    INST_PLUS,   // add the last element on stack onto the second last element, and remove the last element from the stack
-    INST_MINUS,  // subtract the last element on the stack from the second last element, and remove the last element from the stack
-    INST_MULT,   // multiply the last element on the stack to the second last element, and remove the last element from the stack
-    INST_DIV,    // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
-    INST_JMP,    // unconditional jump
-    INST_HALT,   // halt the machine
-    INST_JMP_IF, // jump to an address if the last element on the stack is non-zero; do not jump otherwise
-    INST_EQ,     // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
-} Inst_Type;     // enum for the instruction types
+    INST_NOP = 0, // does nothing but increment the instruction pointer; if the program array is just zero, it will all be no-ops;
+    INST_PUSH,    // push a word to the stack top; we assume that our stack grows downwards
+    INST_DUP,     // duplicates the element at the position stack_top - addr at the top of the stack; stack_top = stack_size - 1
+    INST_PLUS,    // add the last element on stack onto the second last element, and remove the last element from the stack
+    INST_MINUS,   // subtract the last element on the stack from the second last element, and remove the last element from the stack
+    INST_MULT,    // multiply the last element on the stack to the second last element, and remove the last element from the stack
+    INST_DIV,     // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
+    INST_JMP,     // unconditional jump
+    INST_HALT,    // halt the machine
+    INST_JMP_IF,  // jump to an address if the last element on the stack is non-zero; do not jump otherwise
+    INST_EQ,      // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
+} Inst_Type;      // enum for the instruction types
 
 typedef struct
 {
@@ -90,7 +93,7 @@ typedef struct // structure defining the actual virtual machine
     word instruction_pointer;      // the address of the next instruction to be executed
     int halt;
     Inst program[VM_PROGRAM_CAPACITY]; // the actual instruction array
-    size_t program_size; // number of instructions in the program
+    size_t program_size;               // number of instructions in the program
 } VirtualMachine;
 
 const char *inst_type_as_cstr(Inst_Type type)
@@ -99,6 +102,8 @@ const char *inst_type_as_cstr(Inst_Type type)
     {
     case INST_PUSH:
         return "INST_PUSH";
+    case INST_NOP:
+        return "INST_NOP";
     case INST_PLUS:
         return "INST_PLUS";
     case INST_MULT:
@@ -144,6 +149,9 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
     Inst inst = vm->program[vm->instruction_pointer];
     switch (inst.type)
     {
+    case INST_NOP:
+        vm->instruction_pointer++;
+        break;
     case INST_PUSH:
         if (vm->stack_size >= VM_STACK_CAPACITY)
         {
@@ -256,7 +264,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
 
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size)
 {
-    if(!program)
+    if (!program)
     {
         fprintf(stderr, "Invalid Pointer to the Instruction Array\n");
         return FAILURE;
@@ -394,20 +402,135 @@ static Inst program[] = {
     MAKE_INST_HALT,
 }; // can't call functions in const arrays; so we made the instructions as macros
 
-void vm_load_program_from_memory(VirtualMachine *vm, const char *file_path)
+const char *source_code =
+    "push 0\n"
+    "push 1\n"
+    "dup 1\n"
+    "dup 1\n"
+    "plus\n"
+    "jmp 2\n"
+    "halt\n"; // these individual strings are concatenated into a single string
+
+// equivalent to const char *source_code = "push 0\npush 1\ndup 1\ndup 1\nplus\njmp 2\nhalt\n";
+
+typedef struct
 {
+    size_t count;
+    char *data;
+} String_View;
+
+String_View cstr_as_sv(char *cstr)
+{
+    return (String_View){
+        .count = strlen(cstr),
+        .data = cstr,
+    };
+}
+
+String_View sv_chop_by_delim(String_View *sv, const char delim)
+{
+    String_View chopped = {0};  // Initialize chopped.count to 0
+    chopped.data = sv->data;
+
+    // Loop through until the delimiter or end of string is found
+    while (*(sv->data) != delim)
+    {
+        sv->count--;
+        chopped.count++;
+        if (*(sv->data) == '\0')  // End of string, return chopped part; sv->count is now zero and sv pointst to a NULL byte
+        {
+            return chopped;
+        }
+        sv->data++;
+    }
+
+    // If delimiter found, chop and move the String_View forward
+    if (*(sv->data) == delim)
+    {
+        sv->count--;  // Skip the delimiter
+        sv->data++;   // Move past the delimiter
+    }
+
+    return chopped;
+}
+
+void sv_trim_left(String_View line)
+{
+    while (isspace((int)*(line.data)))
+    {
+        line.data++;
+        line.count--;
+    }
+}
+
+Inst vm_translate_line(String_View line)
+{
+    sv_trim_left(line);
+    String_View inst_name = sv_chop_by_delim(&line, ' ');
+}
+
+size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity)
+{
+    while (source.count > 0) // source.count is zero if we reach the end of source
+    {
+        String_View line = sv_chop_by_delim(&source, '\n');
+        printf("#%.*s#\n", (int)line.count, line.data);
+    }
+
+    return 0;
+}
+
+char *trim_left(char *str, size_t str_size)
+{
+    for (size_t i = 0; i < str_size; i++)
+    {
+        if (!isspace((int)*str))
+        {
+            return str;
+        }
+        str++;
+    }
+    return str;
+} // trims the left of the string to remove all the white spaces; returns pointer to the first non-whitespace character in the string;
+// if the string is all whitespaces, returns the pointer to the end of the string, i.e, the null byte pointer
+
+Inst vm_translate_line(char *line, size_t line_size)
+{
+    {
+        char *line_start = line;
+        char *actual_start = trim_left(line, line_size);
+        line_size -= (actual_start - line_start);
+    }
+
+    if (!line_size)
+    {
+        fprintf(stderr, "ERROR: Could not translate empty line to an instruction\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main()
 {
     VirtualMachine vm;
+    vm.program_size = vm_translate_source(cstr_as_sv(source_code), &(vm.program[0]), VM_PROGRAM_CAPACITY);
+
+    /* char *a = "hello\nworld";
+    String_View a_sv = cstr_as_sv(a);
+    String_View chopped = sv_chop_by_delim(&a_sv, '\n');
+    printf("%s\n#%.*s#\n", a_sv.data, (int) chopped.count, chopped.data); */
+    return 0;
+}
+
+/* int main1()
+{
+    VirtualMachine vm;
     vm_init(&vm, program, ARRAY_SIZE(program));
-    //vm_save_program_to_file(program, ARRAY_SIZE(program), "./prog.vm");
+    // vm_save_program_to_file(program, ARRAY_SIZE(program), "./prog.vm");
     vm_load_program_from_file(&vm, "prog.vm");
     vm_exec_program(&vm);
 }
 
-int main2(/* int argc, char **argv */)
+int main2()
 {
     VirtualMachine vm;
     vm_init(&vm, program, ARRAY_SIZE(program));
@@ -417,4 +540,4 @@ int main2(/* int argc, char **argv */)
         fprintf(stderr, "%s\n", trap_as_cstr(TRAP_NO_HALT_FOUND));
     }
     return EXIT_SUCCESS;
-}
+} */
