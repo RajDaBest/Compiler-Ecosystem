@@ -296,6 +296,38 @@ void vm_push_inst(VirtualMachine *vm, Inst *inst)
     vm->program[vm->program_size++ - 1] = *inst;
 }
 
+void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path)
+{
+    FILE *f = fopen(file_path, "wb");
+    if(!f)
+    {
+        fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    fwrite(program, sizeof(program[0]), program_size, f);
+    if (ferror(f)) // did some error occur due to the last stdio function call on f?
+    {
+        fprintf(stderr, "ERROR: Could not write to file '%s': %s\n", file_path, strerror(errno));
+        fclose(f);
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(f);
+}
+
+void vm_load_program_from_file(VirtualMachine *vm, const char *file_path)
+{
+    FILE *f = fopen(file_path, "rb");
+    if(!f)
+    {
+        fprintf(stderr, "ERROR: Could not open file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(f);
+}
+
 // VirtualMachine vm = {0}; // zeroes everything in vm (the stack is zeroed to)
 
 static Inst program[] = {
@@ -308,7 +340,13 @@ static Inst program[] = {
     MAKE_INST_HALT, 
 }; // can't call functions in const arrays; so we made the instructions as macros
 
-int main(/* int argc, char **argv */)
+
+int main()
+{
+    vm_save_program_to_file(program, ARRAY_SIZE(program), "prog.vm");
+}
+
+int main2(/* int argc, char **argv */)
 {
     VirtualMachine vm;
     vm_init(&vm, program, ARRAY_SIZE(program));
