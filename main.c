@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #define SUCCESS 1
 #define FAILURE 0
@@ -429,7 +430,7 @@ String_View cstr_as_sv(char *cstr)
 
 String_View sv_chop_by_delim(String_View *sv, const char delim)
 {
-    String_View chopped = {0};  // Initialize chopped.count to 0
+    String_View chopped = {0}; // Initialize chopped.count to 0
     chopped.data = sv->data;
 
     // Loop through until the delimiter or end of string is found
@@ -437,7 +438,7 @@ String_View sv_chop_by_delim(String_View *sv, const char delim)
     {
         sv->count--;
         chopped.count++;
-        if (*(sv->data) == '\0')  // End of string, return chopped part; sv->count is now zero and sv pointst to a NULL byte
+        if (*(sv->data) == '\0') // End of string, return chopped part; sv->count is now zero and sv pointst to a NULL byte
         {
             return chopped;
         }
@@ -447,8 +448,8 @@ String_View sv_chop_by_delim(String_View *sv, const char delim)
     // If delimiter found, chop and move the String_View forward
     if (*(sv->data) == delim)
     {
-        sv->count--;  // Skip the delimiter
-        sv->data++;   // Move past the delimiter
+        sv->count--; // Skip the delimiter
+        sv->data++;  // Move past the delimiter
     }
 
     return chopped;
@@ -463,10 +464,65 @@ void sv_trim_left(String_View line)
     }
 }
 
+bool sv_eq(String_View a, String_View b)
+{
+    if (a.count != b.count)
+    {
+        return false;
+    }
+
+    for (int i = 0; i < a.count; i++)
+    {
+        if (a.data[i] != b.data[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+int str_errno = SUCCESS;
+
+int sv_to_int(String_View *op)
+{
+    int num = 0;
+    for (size_t i = 0; i < op->count; i++)
+    {
+        int dig = op->data[i] - '0';
+        if (dig > 9 || dig < 0)
+        {
+            str_errno = FAILURE; // Set error if non-digit is encountered
+            return -1;
+        }
+
+        /* // Check for overflow before multiplying and adding
+        if (num > (INT_MAX - dig) / 10)
+        {
+            str_errno = FAILURE; // Set error if overflow occurs
+            return -1;
+        } */
+
+        num = num * 10 + dig;
+    }
+    return num;
+}
+
 Inst vm_translate_line(String_View line)
 {
     sv_trim_left(line);
     String_View inst_name = sv_chop_by_delim(&line, ' ');
+
+    if (sv_eq(inst_name, cstr_as_sv("push")))
+    {
+        sv_trim_left(line);
+        int operand = sv_to_int(&line);
+        if (!str_errno)
+        {
+            fprintf(stderr, "ERROR: %*.s is not a valid integer\n", (int)line.count, line);
+        }
+        return (Inst){.type = INST_PUSH, .operand = operand};
+    }
 }
 
 size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity)
@@ -494,7 +550,7 @@ char *trim_left(char *str, size_t str_size)
 } // trims the left of the string to remove all the white spaces; returns pointer to the first non-whitespace character in the string;
 // if the string is all whitespaces, returns the pointer to the end of the string, i.e, the null byte pointer
 
-Inst vm_translate_line(char *line, size_t line_size)
+/* Inst vm_translate_line(char *line, size_t line_size)
 {
     {
         char *line_start = line;
@@ -507,13 +563,16 @@ Inst vm_translate_line(char *line, size_t line_size)
         fprintf(stderr, "ERROR: Could not translate empty line to an instruction\n");
         exit(EXIT_FAILURE);
     }
-}
+} */
 
 int main()
 {
-    VirtualMachine vm;
-    vm.program_size = vm_translate_source(cstr_as_sv(source_code), &(vm.program[0]), VM_PROGRAM_CAPACITY);
+    // VirtualMachine vm;
+    // vm.program_size = vm_translate_source(cstr_as_sv(source_code), &(vm.program[0]), VM_PROGRAM_CAPACITY);
 
+    char a[] = "12";
+    String_View sv = cstr_as_sv(a);
+    printf("%d\n", sv_to_int(&sv));
     /* char *a = "hello\nworld";
     String_View a_sv = cstr_as_sv(a);
     String_View chopped = sv_chop_by_delim(&a_sv, '\n');
