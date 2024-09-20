@@ -439,7 +439,7 @@ size_t vm_load_program_from_file(Inst *program, const char *file_path)
         exit(EXIT_FAILURE);
     }
 
-    fread(program, sizeof(Inst), ret / sizeof(Inst), f);
+    int ret_val = fread(program, sizeof(Inst), ret / sizeof(Inst), f);
     if (ferror(f))
     {
         fclose(f);
@@ -690,7 +690,7 @@ String_View slurp_file(const char *file_path)
         exit(EXIT_FAILURE);
     }
 
-    fread(buffer, 1, ret, f);
+    int ret_val = fread(buffer, 1, ret, f);
     if (ferror(f))
     {
         fclose(f);
