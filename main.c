@@ -29,6 +29,9 @@
 #define MAKE_INST_EQ {.type = INST_EQ}
 #define MAKE_INST_NOP {.type = INST_NOP}
 
+size_t vm_stack_capacity = VM_STACK_CAPACITY;
+size_t vm_program_capacity =VM_PROGRAM_CAPACITY;
+
 typedef enum
 {
     TRAP_OK = 0,
@@ -94,11 +97,11 @@ typedef struct
 
 typedef struct // structure defining the actual virtual machine
 {
-    word stack[VM_STACK_CAPACITY]; // the stack of the virtual machine; the stack top is the end of the array
+    word *stack; // the stack of the virtual machine; the stack top is the end of the array
     size_t stack_size;             // current stack size
     word instruction_pointer;      // the address of the next instruction to be executed
     int halt;
-    Inst program[VM_PROGRAM_CAPACITY]; // the actual instruction array
+    Inst *program; // the actual instruction array
     size_t program_size;               // number of instructions in the program
 } VirtualMachine;
 
@@ -159,7 +162,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->instruction_pointer++;
         break;
     case INST_PUSH:
-        if (vm->stack_size >= VM_STACK_CAPACITY)
+        if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
         }
@@ -245,7 +248,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         }
         break;
     case INST_DUP:
-        if (vm->stack_size >= VM_STACK_CAPACITY)
+        if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
         }
@@ -281,11 +284,21 @@ int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t progra
     return SUCCESS;
 }
 
-void vm_init(VirtualMachine *vm, Inst *program, size_t program_size)
+void vm_init(VirtualMachine *vm)
 {
+    vm->stack = malloc(sizeof(word) * vm_stack_capacity);
+    if (!vm->stack)
+    {
+        fprintf(stderr, "ERROR: stack allocation failed: %s\n", strerror(errno));
+    }
+
+    vm->program = malloc(sizeof(Inst) * vm_program_capacity);
+    if (!vm->program)
+    {
+        fprintf(stderr, "ERROR: code section allocation failed: %s\n", strerror(errno));
+    }
+
     vm->stack_size = 0;
-    vm->program_size = program_size;
-    memcpy(vm->program, program, program_size * sizeof(program[0]));
     vm->instruction_pointer = 0;
     vm->halt = 0;
 }
@@ -315,7 +328,7 @@ int vm_exec_program(VirtualMachine *vm)
 
 void vm_push_inst(VirtualMachine *vm, Inst *inst)
 {
-    if (vm->program_size == VM_PROGRAM_CAPACITY)
+    if (vm->program_size == vm_program_capacity)
     {
         fprintf(stderr, "Program Size Limit Exceeded");
         exit(EXIT_FAILURE);
@@ -333,7 +346,7 @@ void vm_save_program_to_file(Inst *program, size_t program_size, const char *fil
         exit(EXIT_FAILURE);
     }
 
-    fwrite(program, sizeof(program[0]), program_size, f);
+    fwrite(program, sizeof(Inst), program_size, f);
     if (ferror(f)) // did some error occur due to the last stdio function call on f?
     {
         fprintf(stderr, "ERROR: Could not write to file '%s': %s\n", file_path, strerror(errno));
@@ -344,9 +357,9 @@ void vm_save_program_to_file(Inst *program, size_t program_size, const char *fil
     fclose(f);
 }
 
-void vm_load_program_from_file(VirtualMachine *vm, const char *file_path)
+size_t vm_load_program_from_file(Inst *program, const char *file_path)
 {
-    long ret;
+    long ret = 0;
     FILE *f = fopen(file_path, "rb");
     if (!f)
     {
@@ -371,8 +384,8 @@ void vm_load_program_from_file(VirtualMachine *vm, const char *file_path)
 
     // ret now contains the number of bytes in the file
 
-    assert(ret % sizeof(vm->program[0]) == 0);
-    assert((size_t)ret <= VM_PROGRAM_CAPACITY * sizeof(vm->program[0]));
+    assert(ret % sizeof(Inst) == 0);
+    assert((size_t)ret <= vm_program_capacity * sizeof(Inst));
 
     if (fseek(f, 0, SEEK_SET))
     {
@@ -381,19 +394,16 @@ void vm_load_program_from_file(VirtualMachine *vm, const char *file_path)
         exit(EXIT_FAILURE);
     }
 
-    vm->program_size = fread(vm->program, sizeof(vm->program[0]), ret / sizeof(vm->program[0]), f);
+    fread(program, sizeof(Inst), ret / sizeof(Inst), f);
     if (ferror(f))
     {
         fclose(f);
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
         exit(EXIT_FAILURE);
     }
-
-    vm->stack_size = 0;
-    vm->instruction_pointer = 0;
-    vm->halt = 0;
-
     fclose(f);
+    
+    return (size_t) (ret / sizeof(Inst));
 }
 
 // VirtualMachine vm = {0}; // zeroes everything in vm (the stack is zeroed to)
@@ -804,60 +814,101 @@ String_View slurp_file(const char *file_path)
     };
 }
 
-int main(int argc, char **argv)
-{
+void print_usage_and_exit() {
+    fprintf(stderr, "Usage: ./virtmach -action <anc|run> [options] [<input.vasm> <output.vm>] or [<file.vm>]\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  -stack-size <size_in_bytes>       Set the virtual machine's stack size (non-negative integer)\n");
+    fprintf(stderr, "  -program-capacity <size_in_bytes> Set the program capacity in bytes (non-negative integer)\n");
+    exit(EXIT_FAILURE);
+}
+
+int parse_non_negative_int(const char *arg) {
+    int value = atoi(arg);
+    if (value < 0) {
+        fprintf(stderr, "ERROR: Expected non-negative integer, got '%s'.\n", arg);
+        print_usage_and_exit();
+    }
+    return value;
+}
+
+int main(int argc, char **argv) {
     if (argc < 3) {
-        fprintf(stderr, "Usage: ./virtmach -action <anc|run> [<input.vasm> <output.vm>] or [<file.vm>]\n");
-        exit(EXIT_FAILURE);
+        print_usage_and_exit();
     }
 
-    // Check if the first argument is -action
-    if (strcmp(argv[1], "-action") != 0) {
-        fprintf(stderr, "ERROR: Expected -action flag.\n");
-        fprintf(stderr, "Usage: ./virtmach -action <anc|run> [<input.vasm> <output.vm>] or [<file.vm>]\n");
-        exit(EXIT_FAILURE);
+    const char *action = NULL;
+    const char *input = NULL;
+    const char *output = NULL;
+
+    // Parse command-line arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-action") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "ERROR: Missing value for -action.\n");
+                print_usage_and_exit();
+            }
+            action = argv[++i];
+        } else if (strcmp(argv[i], "-stack-size") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "ERROR: Missing value for -stack-size.\n");
+                print_usage_and_exit();
+            }
+            vm_stack_capacity = parse_non_negative_int(argv[++i]);
+        } else if (strcmp(argv[i], "-program-capacity") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "ERROR: Missing value for -program-capacity.\n");
+                print_usage_and_exit();
+            }
+            vm_program_capacity = parse_non_negative_int(argv[++i]);
+        } else if (!input) {
+            input = argv[i];  // First non-option argument is input
+        } else if (!output) {
+            output = argv[i];  // Second non-option argument is output
+        } else {
+            fprintf(stderr, "ERROR: Too many arguments.\n");
+            print_usage_and_exit();
+        }
     }
 
-    // Check the action value
-    const char *action = argv[2];
-    
+    // Ensure action was provided
+    if (!action) {
+        fprintf(stderr, "ERROR: Missing -action option.\n");
+        print_usage_and_exit();
+    }
+
+    // Handle the "anc" action
     if (strcmp(action, "anc") == 0) {
-        // ANC action code
-        if (argc < 5) {
+        if (!input || !output) {
             fprintf(stderr, "./virtmach -action anc <input.vasm> <output.vm>\n");
-            fprintf(stderr, "ERROR: expected input and output\n");
+            fprintf(stderr, "ERROR: expected input and output files for the 'anc' action.\n");
             exit(EXIT_FAILURE);
         }
 
-        char *input = argv[3];
-        char *output = argv[4];
-
         String_View source = slurp_file(input);
-        VirtualMachine vm;
-        vm.program_size = vm_translate_source(source, &(vm.program[0]), VM_PROGRAM_CAPACITY);
-        vm_save_program_to_file(vm.program, vm.program_size, output);
+        Inst program[vm_program_capacity];
+        size_t program_size = vm_translate_source(source, program, vm_program_capacity);
+        vm_save_program_to_file(program, program_size, output);
 
         return EXIT_SUCCESS;
 
     } else if (strcmp(action, "run") == 0) {
-        // RUN action code
-        if (argc < 4) {
+        if (!input) {
             fprintf(stderr, "./virtmach -action run <file.vm>\n");
-            fprintf(stderr, "ERROR: Expected a .vm file\n");
+            fprintf(stderr, "ERROR: expected a .vm file for the 'run' action.\n");
             exit(EXIT_FAILURE);
         }
 
-        VirtualMachine vm = {0};
-        const char *input = argv[3];
-        vm_load_program_from_file(&vm, input);
-        vm_exec_program(&vm);
+        VirtualMachine vm;
+        vm_init(&vm);
+        vm.program_size = vm_load_program_from_file(&(vm.program[0]), input);
+        printf("%d\n", vm_exec_program(&vm) == TRAP_NO_HALT_FOUND);
 
         return EXIT_SUCCESS;
 
     } else {
-        // Invalid action
         fprintf(stderr, "ERROR: Unknown action '%s'. Expected 'anc' or 'run'.\n", action);
-        fprintf(stderr, "Usage: ./virtmach -action <anc|run> [<input.vasm> <output.vm>] or [<file.vm>]\n");
-        exit(EXIT_FAILURE);
+        print_usage_and_exit();
     }
+
+    return EXIT_FAILURE;
 }
