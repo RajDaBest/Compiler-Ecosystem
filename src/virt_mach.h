@@ -623,7 +623,7 @@ Inst vm_translate_line(String_View line)
     }
     else
     {
-        fprintf(stderr, "invalid instruction\n");
+        fprintf(stderr, "invalid instruction %.*s\n", (int)inst_name.count, inst_name.data);
         exit(EXIT_FAILURE);
     }
 }
@@ -639,11 +639,16 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         }
         String_View line = sv_chop_by_delim(&source, '\n');
         sv_trim_left(&line);
-        sv_trim_right(&line);
         if (line.count == 0) // ignores excess lines
         {
             continue;
         }
+        if (*line.data == '#') // ignore whole line comments
+        {
+            continue;
+        }
+        sv_trim_side_comments(&line);
+        sv_trim_right(&line);
         // printf("#%.*s#\n", (int)line.count, line.data);
         program[program_size++] = vm_translate_line(line);
     }
@@ -656,7 +661,7 @@ String_View slurp_file(const char *file_path)
     FILE *f = fopen(file_path, "r");
     if (!f)
     {
-        fprintf(stderr, "ERROR: Couldn't open file: '%s': %s", file_path, strerror(errno));
+        fprintf(stderr, "ERROR: Couldn't open file: '%s': %s\n", file_path, strerror(errno));
         exit(EXIT_FAILURE);
     }
 

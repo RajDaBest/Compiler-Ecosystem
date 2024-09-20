@@ -26,6 +26,7 @@ String_View cstr_as_sv(char *cstr);
 String_View sv_chop_by_delim(String_View *sv, const char delim);
 void sv_trim_left(String_View *line);
 void sv_trim_right(String_View *line);
+void sv_trim_side_comments(String_View *line);
 bool sv_eq(String_View a, String_View b);
 word sv_to_int(String_View *op);
 
@@ -76,6 +77,18 @@ void sv_trim_right(String_View *line)
     while (isspace((int)(line->data[line->count - 1])) && line->count > 0)
     {
         line->count--;
+    }
+}
+
+void sv_trim_side_comments(String_View *line)
+{
+    for(size_t i = 0; i < line->count; i++)
+    {
+        if (line->data[i] == '#')
+        {
+            line->count -= i;
+            break;
+        }
     }
 }
 
