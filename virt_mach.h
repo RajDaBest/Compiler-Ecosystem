@@ -13,9 +13,9 @@
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
 #define MAKE_INST_DUP(rel_addr) {.type = INST_DUP, .operand = (rel_addr)}
-#define MAKE_INST_PLUS {.type = INST_PLUS}
-#define MAKE_INST_MINUS {.type = INST_MINUS}
-#define MAKE_INST_MULT {.type = INST_MULT}
+#define MAKE_INST_PLUS {.type = INST_PLUS,}
+#define MAKE_INST_MINUS {.type = INST_MINUS,}
+#define MAKE_INST_MULT {.type = INST_MULT,}
 #define MAKE_INST_DIV {.type = INST_DIV}
 #define MAKE_INST_JMP(addr) {.type = INST_JMP, .operand = (addr)}
 #define MAKE_INST_HALT {.type = INST_HALT}
@@ -71,6 +71,7 @@ typedef struct // structure defining the actual virtual machine
 } VirtualMachine;
 
 const char *trap_as_cstr(Trap trap);
+const char *inst_type_as_asm_str(Inst_Type type);
 const char *inst_type_as_cstr(Inst_Type type);
 void vm_dump_stack(FILE *stream, const VirtualMachine *vm);
 int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction inst on vm
@@ -141,6 +142,38 @@ const char *inst_type_as_cstr(Inst_Type type)
         return "INST_DUP";
     default:
         assert(0 && "inst_type_as_cstr: unreachable");
+        break;
+    }
+}
+
+const char *inst_type_as_asm_str(Inst_Type type)
+{
+    switch (type)
+    {
+    case INST_PUSH:
+        return "push";
+    case INST_NOP:
+        return "nop";
+    case INST_PLUS:
+        return "plus";
+    case INST_MULT:
+        return "mult";
+    case INST_DIV:
+        return "div";
+    case INST_MINUS:
+        return "minus";
+    case INST_HALT:
+        return "halt";
+    case INST_JMP:
+        return "jmp";
+    case INST_JMP_IF:
+        return "jmp_if";
+    case INST_EQ:
+        return "equ";
+    case INST_DUP:
+        return "dup";
+    default:
+        assert(0 && "inst_type_as_asm_str: unreachable");
         break;
     }
 }
