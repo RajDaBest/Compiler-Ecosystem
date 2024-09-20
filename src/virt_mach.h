@@ -8,14 +8,21 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define VM_STACK_CAPACITY 128
+#define VM_STACK_CAPACITY 1024
 #define VM_PROGRAM_CAPACITY 1024
+#define VM_LABEL_CAPACITY 128
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
 #define MAKE_INST_DUP(rel_addr) {.type = INST_DUP, .operand = (rel_addr)}
-#define MAKE_INST_PLUS {.type = INST_PLUS,}
-#define MAKE_INST_MINUS {.type = INST_MINUS,}
-#define MAKE_INST_MULT {.type = INST_MULT,}
+#define MAKE_INST_PLUS { \
+    .type = INST_PLUS,   \
+}
+#define MAKE_INST_MINUS { \
+    .type = INST_MINUS,   \
+}
+#define MAKE_INST_MULT { \
+    .type = INST_MULT,   \
+}
 #define MAKE_INST_DIV {.type = INST_DIV}
 #define MAKE_INST_JMP(addr) {.type = INST_JMP, .operand = (addr)}
 #define MAKE_INST_HALT {.type = INST_HALT}
@@ -25,6 +32,26 @@
 
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
+size_t label_capacity = VM_LABEL_CAPACITY;
+
+typedef struct
+{
+    String_View label;
+    bool resolved;
+    size_t inst_location;
+} label_inst_location;
+
+typedef struct
+{
+    String_View label;
+    size_t label_pointing_location;
+} label_point_location;
+
+size_t label_array_counter = 0;
+size_t not_resolved_yet_counter = 0;
+
+label_point_location *label_array;
+label_inst_location *not_resolved_yet;
 
 typedef enum
 {
@@ -81,7 +108,7 @@ int vm_exec_program(VirtualMachine *vm, __int64_t limit);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
 void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path);
 size_t vm_load_program_from_file(Inst *program, const char *file_path);
-Inst vm_translate_line(String_View line);
+Inst vm_translate_line(String_View line, size_t current_program_counter);
 size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity);
 String_View slurp_file(const char *file_path);
 
@@ -327,6 +354,20 @@ int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t progra
 
 void vm_init(VirtualMachine *vm)
 {
+    label_array = malloc(sizeof(label_point_location) * label_capacity);
+    if (!label_array)
+    {
+        fprintf(stderr, "ERROR: label array allocation failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    not_resolved_yet = malloc(sizeof(label_inst_location) * label_capacity);
+    if (!not_resolved_yet)
+    {
+        fprintf(stderr, "ERROR: label resolution array allocation failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     vm->stack = malloc(sizeof(word) * vm_stack_capacity);
     if (!vm->stack)
     {
@@ -363,7 +404,7 @@ int vm_exec_program(VirtualMachine *vm, __int64_t limit)
             // vm_dump_stack(stderr, &vm);
         }
         // vm_dump_stack(stdout, &vm);
-        if(limit > 0)
+        if (limit > 0)
         {
             limit--;
         }
@@ -451,7 +492,7 @@ size_t vm_load_program_from_file(Inst *program, const char *file_path)
     return (size_t)(ret / sizeof(Inst));
 }
 
-Inst vm_translate_line(String_View line)
+Inst vm_translate_line(String_View line, size_t current_program_counter)
 {
     String_View inst_name = sv_chop_by_delim(&line, ' ');
     // printf("%d\n", line.count);
@@ -523,8 +564,11 @@ Inst vm_translate_line(String_View line)
         word operand = sv_to_int(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            not_resolved_yet[not_resolved_yet_counter].inst_location = current_program_counter;
+            not_resolved_yet[not_resolved_yet_counter].label = line;
+            not_resolved_yet[not_resolved_yet_counter].resolved = false;
+            not_resolved_yet_counter++;
+            return (Inst){.type = INST_JMP, .operand = 0};
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
@@ -544,8 +588,12 @@ Inst vm_translate_line(String_View line)
         word operand = sv_to_int(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "%d\n", (int)line.count);
+            not_resolved_yet[not_resolved_yet_counter].inst_location = current_program_counter;
+            not_resolved_yet[not_resolved_yet_counter].label = line;
+            not_resolved_yet[not_resolved_yet_counter].resolved = false;
+            not_resolved_yet_counter++;
+            return (Inst){.type = INST_JMP, .operand = 0};
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
@@ -631,23 +679,90 @@ Inst vm_translate_line(String_View line)
 size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity)
 {
     size_t program_size = 0;
-    while (source.count > 0) // source.count is zero if we reach the end of source
+
+    while (source.count > 0) // Process each line
     {
+        printf("Processing a new line...\n");
+
         if (program_size >= program_capacity)
         {
             fprintf(stderr, "Program Too Big\n");
+            exit(EXIT_FAILURE);
         }
+
         String_View line = sv_chop_by_delim(&source, '\n');
-        line = sv_chop_by_delim(&line, '#');
+        printf("Line after chop: '%.*s'\n", (int)line.count, line.data);
+
+        line = sv_chop_by_delim(&line, '#'); // Remove comments
+        printf("Line after removing comments: '%.*s'\n", (int)line.count, line.data);
+
         sv_trim_left(&line);
-        if (line.count == 0) // ignores excess lines and comments
+        sv_trim_right(&line);
+
+        if (line.count == 0) // Ignore empty lines
         {
+            printf("Ignoring empty line\n");
             continue;
         }
-        sv_trim_right(&line);
-        // printf("#%.*s#\n", (int)line.count, line.data);
-        program[program_size++] = vm_translate_line(line);
+
+        // Check for a label
+        String_View label = sv_chop_by_delim(&line, ':');
+        printf("%d\n", line.count);
+        if (*(line.data - 1) == ':') // If there's a label
+        {
+            printf("Found label: '%.*s', pointing to address %zu\n", (int)label.count, label.data, program_size);
+            label_array[label_array_counter].label_pointing_location = program_size;
+            label_array[label_array_counter].label = label;
+            label_array_counter++;
+
+            if (line.count > 0) // instruction remaining after the label
+            {
+                sv_trim_left(&line);
+                printf("Translating instruction: '%.*s'\n", (int)line.count, line.data);
+                program[program_size] = vm_translate_line(line, program_size);
+                program_size++;
+            }
+            continue;
+        }
+
+        line = label;
+        printf("Translating instruction: '%.*s'\n", (int)line.count, line.data);
+        program[program_size] = vm_translate_line(line, program_size);
+        program_size++;
     }
+
+    // Resolve labels
+    printf("Resolving labels...\n");
+    for (size_t i = 0; i < not_resolved_yet_counter; i++)
+    {
+        for (size_t j = 0; j < label_array_counter; j++)
+        {
+            if (sv_eq(not_resolved_yet[i].label, label_array[j].label))
+            {
+                printf("Resolving label '%.*s' to location %zu\n", (int)label_array[j].label.count, label_array[j].label.data, label_array[j].label_pointing_location);
+                program[not_resolved_yet[i].inst_location].operand = label_array[j].label_pointing_location;
+                not_resolved_yet[i].resolved = true;
+            }
+        }
+    }
+
+    // Check if any labels couldn't be resolved
+    bool flag = false;
+    for (size_t i = 0; i < not_resolved_yet_counter; i++)
+    {
+        if (!not_resolved_yet[i].resolved)
+        {
+            fprintf(stderr, "ERROR: cannot resolve label: %.*s\n", (int)not_resolved_yet[i].label.count, not_resolved_yet[i].label.data);
+            flag = true;
+        }
+    }
+
+    if (flag)
+    {
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Translation complete. Program size: %zu\n", program_size);
     return program_size;
 }
 

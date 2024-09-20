@@ -1,6 +1,11 @@
-push 0
-push 1 #hello
-# hello
-jmp 0
-halt
+loop: push 2
 
+
+push 0
+push 1
+
+#helllooo
+
+
+jmp loop
+halt

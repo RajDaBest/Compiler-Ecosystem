@@ -81,6 +81,8 @@ int main(int argc, char **argv) {
         }
 
         String_View source = slurp_file(input);
+        VirtualMachine vm;
+        vm_init(&vm);
         Inst program[vm_program_capacity];
         size_t program_size = vm_translate_source(source, program, vm_program_capacity);
         vm_save_program_to_file(program, program_size, output);
