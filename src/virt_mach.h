@@ -97,12 +97,15 @@ typedef struct // structure defining the actual virtual machine
     size_t program_size; // number of instructions in the program
 } VirtualMachine;
 
+void push_to_not_resolved_yet(String_View label, size_t pointing_location);
+void push_to_label_array(String_View label, size_t pointing_location);
 const char *trap_as_cstr(Trap trap);
 const char *inst_type_as_asm_str(Inst_Type type);
 const char *inst_type_as_cstr(Inst_Type type);
 void vm_dump_stack(FILE *stream, const VirtualMachine *vm);
 int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction inst on vm
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size);
+void label_init();
 void vm_init(VirtualMachine *vm);
 int vm_exec_program(VirtualMachine *vm, __int64_t limit);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
@@ -204,6 +207,22 @@ const char *inst_type_as_asm_str(Inst_Type type)
         break;
     }
 }
+
+void push_to_not_resolved_yet(String_View label, size_t pointing_location)
+{
+    not_resolved_yet[not_resolved_yet_counter].inst_location = pointing_location;
+    not_resolved_yet[not_resolved_yet_counter].label = label;
+    not_resolved_yet[not_resolved_yet_counter].resolved = false;
+    not_resolved_yet_counter++;
+}
+
+void push_to_label_array(String_View label, size_t pointing_location)
+{
+    label_array[label_array_counter].label_pointing_location = pointing_location;
+    label_array[label_array_counter].label = label;
+    label_array_counter++;
+}
+
 
 void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
 {
@@ -352,7 +371,7 @@ int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t progra
     return SUCCESS;
 }
 
-void vm_init(VirtualMachine *vm)
+void label_init()
 {
     label_array = malloc(sizeof(label_point_location) * label_capacity);
     if (!label_array)
@@ -367,7 +386,10 @@ void vm_init(VirtualMachine *vm)
         fprintf(stderr, "ERROR: label resolution array allocation failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+}
 
+void vm_init(VirtualMachine *vm)
+{
     vm->stack = malloc(sizeof(word) * vm_stack_capacity);
     if (!vm->stack)
     {
@@ -564,10 +586,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         word operand = sv_to_int(&line);
         if (str_errno == FAILURE)
         {
-            not_resolved_yet[not_resolved_yet_counter].inst_location = current_program_counter;
-            not_resolved_yet[not_resolved_yet_counter].label = line;
-            not_resolved_yet[not_resolved_yet_counter].resolved = false;
-            not_resolved_yet_counter++;
+            push_to_not_resolved_yet(line, current_program_counter);
             return (Inst){.type = INST_JMP, .operand = 0};
         }
         else if (str_errno == OPERAND_OVERFLOW)
@@ -588,11 +607,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         word operand = sv_to_int(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "%d\n", (int)line.count);
-            not_resolved_yet[not_resolved_yet_counter].inst_location = current_program_counter;
-            not_resolved_yet[not_resolved_yet_counter].label = line;
-            not_resolved_yet[not_resolved_yet_counter].resolved = false;
-            not_resolved_yet_counter++;
+            push_to_not_resolved_yet(line, current_program_counter);
             return (Inst){.type = INST_JMP, .operand = 0};
         }
         else if (str_errno == OPERAND_OVERFLOW)
@@ -711,9 +726,11 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         if (*(line.data - 1) == ':') // If there's a label
         {
             printf("Found label: '%.*s', pointing to address %zu\n", (int)label.count, label.data, program_size);
-            label_array[label_array_counter].label_pointing_location = program_size;
-            label_array[label_array_counter].label = label;
-            label_array_counter++;
+            if (label_array_counter >= label_capacity)
+            {
+                fprintf(stderr, "ERROR: label capacity exceeded at label: %.*s\n", (int)label.count, label.data);
+            }
+            push_to_label_array(label, program_size);
 
             if (line.count > 0) // instruction remaining after the label
             {
