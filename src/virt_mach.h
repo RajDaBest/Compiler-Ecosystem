@@ -638,16 +638,12 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
             fprintf(stderr, "Program Too Big\n");
         }
         String_View line = sv_chop_by_delim(&source, '\n');
+        line = sv_chop_by_delim(&line, '#');
         sv_trim_left(&line);
-        if (line.count == 0) // ignores excess lines
+        if (line.count == 0) // ignores excess lines and comments
         {
             continue;
         }
-        if (*line.data == '#') // ignore whole line comments
-        {
-            continue;
-        }
-        sv_trim_side_comments(&line);
         sv_trim_right(&line);
         // printf("#%.*s#\n", (int)line.count, line.data);
         program[program_size++] = vm_translate_line(line);
