@@ -1,4 +1,10 @@
 push 0
 push 1
+
+
+
 jmp 0
+
+
+
 halt

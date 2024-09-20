@@ -24,7 +24,7 @@
 #define MAKE_INST_NOP {.type = INST_NOP}
 
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
-size_t vm_program_capacity =VM_PROGRAM_CAPACITY;
+size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 
 typedef enum
 {
@@ -62,12 +62,12 @@ typedef struct
 
 typedef struct // structure defining the actual virtual machine
 {
-    word *stack; // the stack of the virtual machine; the stack top is the end of the array
-    size_t stack_size;             // current stack size
-    word instruction_pointer;      // the address of the next instruction to be executed
+    word *stack;              // the stack of the virtual machine; the stack top is the end of the array
+    size_t stack_size;        // current stack size
+    word instruction_pointer; // the address of the next instruction to be executed
     int halt;
-    Inst *program; // the actual instruction array
-    size_t program_size;               // number of instructions in the program
+    Inst *program;       // the actual instruction array
+    size_t program_size; // number of instructions in the program
 } VirtualMachine;
 
 const char *trap_as_cstr(Trap trap);
@@ -410,14 +410,12 @@ size_t vm_load_program_from_file(Inst *program, const char *file_path)
         exit(EXIT_FAILURE);
     }
     fclose(f);
-    
-    return (size_t) (ret / sizeof(Inst));
-}
 
+    return (size_t)(ret / sizeof(Inst));
+}
 
 Inst vm_translate_line(String_View line)
 {
-    sv_trim_left(&line);
     String_View inst_name = sv_chop_by_delim(&line, ' ');
     // printf("%d\n", line.count);
     sv_trim_left(&line);
@@ -603,12 +601,17 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
             fprintf(stderr, "Program Too Big\n");
         }
         String_View line = sv_chop_by_delim(&source, '\n');
+        sv_trim_left(&line);
+        sv_trim_right(&line);
+        if (line.count == 0) // ignores excess lines
+        {
+            continue;
+        }
         // printf("#%.*s#\n", (int)line.count, line.data);
         program[program_size++] = vm_translate_line(line);
     }
     return program_size;
 }
-
 
 String_View slurp_file(const char *file_path)
 {
