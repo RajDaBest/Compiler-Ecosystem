@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Wextra -std=c11 -pedantic
+CFLAGS=-Wall -O0 -Wextra -std=c11 -pedantic -g
 LIBS=
 
 VirtualMachine: main.c

@@ -7,6 +7,10 @@
 #include <ctype.h>
 #include <stdbool.h>
 
+#define ANS 1
+#define RUN 2
+#define ACTION ANS
+
 #define SUCCESS 1
 #define FAILURE 0
 #define OPERAND_OVERFLOW -1
@@ -405,14 +409,14 @@ void vm_load_program_from_file(VirtualMachine *vm, const char *file_path)
 }; */
 // can't call functions in const arrays; so we made the instructions as macros
 
-const char *source_code =
-    "   push      0\n\n"
+/* const char *source_code =
+    "   push      0\n"
     "push 1\n"
     "dup 1\n"
     "dup 1\n"
     "plus  \n"
     "jmp 2   \n"
-    "halt\n"; // these individual strings are concatenated into a single string
+    "halt\n"; */ // these individual strings are concatenated into a single string
 
 // equivalent to const char *source_code = "push 0\npush 1\ndup 1\ndup 1\nplus\njmp 2\nhalt\n";
 
@@ -455,7 +459,7 @@ String_View sv_chop_by_delim(String_View *sv, const char delim)
 
 void sv_trim_left(String_View *line)
 {
-    while (isspace((int)*(line->data)) && line->count>0)
+    while (isspace((int)*(line->data)) && line->count > 0)
     {
         line->data++;
         line->count--;
@@ -518,7 +522,7 @@ Inst vm_translate_line(String_View line)
 {
     sv_trim_left(&line);
     String_View inst_name = sv_chop_by_delim(&line, ' ');
-    printf("%d\n", line.count);
+    // printf("%d\n", line.count);
     sv_trim_left(&line);
     sv_trim_right(&line);
     bool has_operand = line.count > 0;
@@ -744,41 +748,116 @@ char *trim_left(char *str, size_t str_size)
     }
 } */
 
-int main()
+String_View slurp_file(const char *file_path)
 {
-    VirtualMachine vm;
-    vm.program_size = vm_translate_source(cstr_as_sv(source_code), &(vm.program[0]), VM_PROGRAM_CAPACITY);
-    // printf("%s %d %d %d\n", inst_type_as_cstr(vm.program[0].type), vm.program[0].operand, vm.program_size, vm.instruction_pointer);
-    int ret = vm_exec_program(&vm);
-    // printf("%d\n", ret == TRAP_NO_HALT_FOUND);
-    vm_dump_stack(stdout, &vm);
-    char a[] = "12";
-    String_View sv = cstr_as_sv(a);
-    printf("%d\n", sv_to_int(&sv));
-    /* char *a = "hello\nworld";
-    String_View a_sv = cstr_as_sv(a);
-    String_View chopped = sv_chop_by_delim(&a_sv, '\n');
-    printf("%s\n#%.*s#\n", a_sv.data, (int) chopped.count, chopped.data); */
-    return 0;
-}
-
-/* int main1()
-{
-    VirtualMachine vm;
-    vm_init(&vm, program, ARRAY_SIZE(program));
-    // vm_save_program_to_file(program, ARRAY_SIZE(program), "./prog.vm");
-    vm_load_program_from_file(&vm, "prog.vm");
-    vm_exec_program(&vm);
-}
-
-int main2()
-{
-    VirtualMachine vm;
-    vm_init(&vm, program, ARRAY_SIZE(program));
-    int ret = vm_exec_program(&vm);
-    if (ret == TRAP_NO_HALT_FOUND)
+    int ret = 0;
+    FILE *f = fopen(file_path, "r");
+    if (!f)
     {
-        fprintf(stderr, "%s\n", trap_as_cstr(TRAP_NO_HALT_FOUND));
+        fprintf(stderr, "ERROR: Couldn't open file: '%s': %s", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
     }
-    return EXIT_SUCCESS;
-} */
+
+    if (fseek(f, 0, SEEK_END))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    ret = ftell(f);
+    if (ret == -1)
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    // ret now contains the number of bytes in the file
+    if (fseek(f, 0, SEEK_SET))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    char *buffer = malloc(ret);
+    if (!buffer)
+    {
+        fprintf(stderr, "ERROR: Couldn't allocate memory for file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    fread(buffer, 1, ret, f);
+    if (ferror(f))
+    {
+        fclose(f);
+        fprintf(stderr, "Could not read the file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    fclose(f);
+
+    return (String_View){
+        .count = ret,
+        .data = buffer,
+    };
+}
+
+int main(int argc, char **argv)
+{
+    if (argc < 3) {
+        fprintf(stderr, "Usage: ./virtmach -action <anc|run> [<input.vasm> <output.vm>] or [<file.vm>]\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Check if the first argument is -action
+    if (strcmp(argv[1], "-action") != 0) {
+        fprintf(stderr, "ERROR: Expected -action flag.\n");
+        fprintf(stderr, "Usage: ./virtmach -action <anc|run> [<input.vasm> <output.vm>] or [<file.vm>]\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Check the action value
+    const char *action = argv[2];
+    
+    if (strcmp(action, "anc") == 0) {
+        // ANC action code
+        if (argc < 5) {
+            fprintf(stderr, "./virtmach -action anc <input.vasm> <output.vm>\n");
+            fprintf(stderr, "ERROR: expected input and output\n");
+            exit(EXIT_FAILURE);
+        }
+
+        char *input = argv[3];
+        char *output = argv[4];
+
+        String_View source = slurp_file(input);
+        VirtualMachine vm;
+        vm.program_size = vm_translate_source(source, &(vm.program[0]), VM_PROGRAM_CAPACITY);
+        vm_save_program_to_file(vm.program, vm.program_size, output);
+
+        return EXIT_SUCCESS;
+
+    } else if (strcmp(action, "run") == 0) {
+        // RUN action code
+        if (argc < 4) {
+            fprintf(stderr, "./virtmach -action run <file.vm>\n");
+            fprintf(stderr, "ERROR: Expected a .vm file\n");
+            exit(EXIT_FAILURE);
+        }
+
+        VirtualMachine vm = {0};
+        const char *input = argv[3];
+        vm_load_program_from_file(&vm, input);
+        vm_exec_program(&vm);
+
+        return EXIT_SUCCESS;
+
+    } else {
+        // Invalid action
+        fprintf(stderr, "ERROR: Unknown action '%s'. Expected 'anc' or 'run'.\n", action);
+        fprintf(stderr, "Usage: ./virtmach -action <anc|run> [<input.vasm> <output.vm>] or [<file.vm>]\n");
+        exit(EXIT_FAILURE);
+    }
+}
