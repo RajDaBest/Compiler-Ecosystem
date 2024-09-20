@@ -2,23 +2,28 @@
 #include "virt_mach.h"
 
 void print_usage_and_exit() {
-    fprintf(stderr, "Usage: ./virtmach -action <anc|run> [options] [<input.vasm> <output.vm>] or [<file.vm>]\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -stack-size <size_in_bytes>       Set the virtual machine's stack size (non-negative integer)\n");
-    fprintf(stderr, "  -program-capacity <size_in_bytes> Set the program capacity in bytes (non-negative integer)\n");
+    fprintf(stderr, "Usage: ./virtmach -action <anc|run> [-stack-size <size>] [-program-capacity <size>] [-limit <n>] <input> [output]\n");
+    fprintf(stderr, "  -action <anc|run>         Action to perform ('anc' to assemble, 'run' to execute)\n");
+    fprintf(stderr, "  -stack-size <size>        Optional stack size (default: 1024)\n");
+    fprintf(stderr, "  -program-capacity <size>  Optional program capacity (default: 1024)\n");
+    fprintf(stderr, "  -limit <n>                Optional instruction limit, -1 for no limit (default: -1)\n");
+    fprintf(stderr, "  <input>                   Input file (for 'anc' or 'run')\n");
+    fprintf(stderr, "  [output]                  Output file (only for 'anc' action)\n");
     exit(EXIT_FAILURE);
 }
 
-int parse_non_negative_int(const char *arg) {
-    int value = atoi(arg);
+
+__int64_t parse_non_negative_int(const char *str) {
+    __int64_t value = atoll(str);
     if (value < 0) {
-        fprintf(stderr, "ERROR: Expected non-negative integer, got '%s'.\n", arg);
+        fprintf(stderr, "ERROR: Value must be non-negative.\n");
         print_usage_and_exit();
     }
     return value;
 }
 
 int main(int argc, char **argv) {
+    __int64_t limit = -1;  // Default instruction limit: unlimited (-1)
     if (argc < 3) {
         print_usage_and_exit();
     }
@@ -27,7 +32,6 @@ int main(int argc, char **argv) {
     const char *input = NULL;
     const char *output = NULL;
 
-    // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-action") == 0) {
             if (i + 1 >= argc) {
@@ -47,23 +51,28 @@ int main(int argc, char **argv) {
                 print_usage_and_exit();
             }
             vm_program_capacity = parse_non_negative_int(argv[++i]);
+        } else if (strcmp(argv[i], "-limit") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "ERROR: Missing value for -limit.\n");
+                print_usage_and_exit();
+            }
+            limit = atoll(argv[++i]);
         } else if (!input) {
-            input = argv[i];  // First non-option argument is input
+            input = argv[i];  
         } else if (!output) {
-            output = argv[i];  // Second non-option argument is output
+            output = argv[i];  
         } else {
             fprintf(stderr, "ERROR: Too many arguments.\n");
             print_usage_and_exit();
         }
     }
 
-    // Ensure action was provided
+
     if (!action) {
         fprintf(stderr, "ERROR: Missing -action option.\n");
         print_usage_and_exit();
     }
 
-    // Handle the "anc" action
     if (strcmp(action, "anc") == 0) {
         if (!input || !output) {
             fprintf(stderr, "./virtmach -action anc <input.vasm> <output.vm>\n");
@@ -87,8 +96,8 @@ int main(int argc, char **argv) {
 
         VirtualMachine vm;
         vm_init(&vm);
-        vm.program_size = vm_load_program_from_file(&(vm.program[0]), input);
-        printf("%d\n", vm_exec_program(&vm) == TRAP_NO_HALT_FOUND);
+        vm.program_size = vm_load_program_from_file(vm.program, input);
+        vm_exec_program(&vm, limit);
 
         return EXIT_SUCCESS;
 

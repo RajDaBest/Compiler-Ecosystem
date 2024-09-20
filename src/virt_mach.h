@@ -77,7 +77,7 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm);
 int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction inst on vm
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size);
 void vm_init(VirtualMachine *vm);
-int vm_exec_program(VirtualMachine *vm);
+int vm_exec_program(VirtualMachine *vm, __int64_t limit);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
 void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path);
 size_t vm_load_program_from_file(Inst *program, const char *file_path);
@@ -344,14 +344,14 @@ void vm_init(VirtualMachine *vm)
     vm->halt = 0;
 }
 
-int vm_exec_program(VirtualMachine *vm)
+int vm_exec_program(VirtualMachine *vm, __int64_t limit)
 {
     int ret;
     if (vm->program[vm->program_size - 1].type != INST_HALT)
     {
         return TRAP_NO_HALT_FOUND;
     }
-    while (!vm->halt)
+    while (!vm->halt && limit != 0)
     {
         fprintf(stdout, "%s\n", inst_type_as_cstr(vm->program[vm->instruction_pointer].type));
         ret = vm_execute_at_inst_pointer(vm);
@@ -363,6 +363,10 @@ int vm_exec_program(VirtualMachine *vm)
             // vm_dump_stack(stderr, &vm);
         }
         // vm_dump_stack(stdout, &vm);
+        if(limit > 0)
+        {
+            limit--;
+        }
     }
     return SUCCESS;
 }
