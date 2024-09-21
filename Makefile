@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Wextra -std=c11 -pedantic -O3 -Wall -march=native -ffast-math -funroll-loops -ftree-vectorize -finline-functions -floop-nest-optimize -mavx2 -mfma -mfpmath=sse -flto -fno-math-errno -fno-signed-zeros -pg -g 
+CFLAGS=-Wall -Wmissing-prototypes -Wstrict-prototypes -Wextra -std=c11 -pedantic -O3 -Wall -march=native -ffast-math -funroll-loops -ftree-vectorize -finline-functions -floop-nest-optimize -mavx2 -mfma -mfpmath=sse -flto -fno-math-errno -fno-signed-zeros -pg -g 
 LIBS=
 
 virtmach: src/main.c

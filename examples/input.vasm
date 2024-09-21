@@ -1,4 +1,4 @@
-loop: push 2
+loop: push 2          
 
 
 push 0
@@ -6,6 +6,6 @@ push 1
 
 #helllooo
 
-
-jmp loop
-halt
+jmp 2                  
+jmp loop                       
+halt              

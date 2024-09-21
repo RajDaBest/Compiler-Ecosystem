@@ -2,3 +2,4 @@ devasm
 virtmach
 gmon.out
 output.vm
+./src/nan
