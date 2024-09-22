@@ -28,7 +28,7 @@ void sv_trim_left(String_View *line);
 void sv_trim_right(String_View *line);
 void sv_trim_side_comments(String_View *line);
 bool sv_eq(String_View a, String_View b);
-word sv_to_int(String_View *op);
+double sv_to_value(String_View *op);
 
 #ifdef _SV_IMPLEMENTATION
 
@@ -110,30 +110,74 @@ bool sv_eq(String_View a, String_View b)
     return true;
 }
 
-word sv_to_int(String_View *op)
+bool is_fraction = false;
+bool is_negative = false;
+
+double sv_to_value(String_View *op)
 {
-    word num = 0;
+    double num = 0;
+    double fraction_part = 0;
+    double divisor = 1;
+    is_negative = false;
+    is_fraction = false;
+    str_errno = SUCCESS; // Reset the error flag before processing
+
     for (size_t i = 0; i < op->count; i++)
     {
-        int dig = op->data[i] - '0';
-        if (dig > 9 || dig < 0)
+        char ch = op->data[i];
+        
+        // Check for negative sign
+        if (ch == '-')
+        {
+            if (i > 0) // Negative sign should only be at the beginning
+            {
+                str_errno = FAILURE;
+                return -1;
+            }
+            is_negative = true;
+            continue;
+        }
+
+        if (ch == '.')
+        {
+            if (is_fraction)
+            {
+                // Multiple dots encountered, return error
+                str_errno = FAILURE;
+                return -1;
+            }
+            is_fraction = true;
+            continue;
+        }
+
+        int dig = ch - '0';
+        if (dig < 0 || dig > 9)
         {
             str_errno = FAILURE; // Set error if non-digit is encountered
             return -1;
         }
 
-        // Check for overflow before multiplying and adding
-        if (num > (__INT_LEAST64_MAX__ - dig) / 10)
+        if (is_fraction)
         {
-            str_errno = OPERAND_OVERFLOW; // Set error if overflow occurs
-            return -1;
+            divisor *= 10;
+            fraction_part += dig / divisor;
         }
+        else
+        {
+            // Check for overflow before multiplying and adding
+            if (num > (__INT_LEAST64_MAX__ - dig) / 10)
+            {
+                str_errno = OPERAND_OVERFLOW; // Set error if overflow occurs
+                return -1;
+            }
 
-        num = num * 10 + dig;
+            num = num * 10 + dig;
+        }
     }
-    return num;
-}
 
+    double result = num + fraction_part;
+    return is_negative ? -result : result; // Apply the negative sign if needed
+}
 
 #endif // _SV_IMPLEMENTATION
 

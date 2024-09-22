@@ -1,8 +1,10 @@
 #ifndef _VM
 #define _VM
 #define _SV_IMPLEMENTATION
+#define _NAN_IMPLEMENTATION
 
 #include "String_View.h"
+#include "nan_boxing.h"
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
@@ -44,7 +46,7 @@ typedef struct
 typedef struct
 {
     String_View label;
-    size_t label_pointing_location;
+    double label_pointing_location;
 } label_point_location;
 
 size_t label_array_counter = 0;
@@ -64,7 +66,8 @@ typedef enum
     TRAP_ILLEGAL_INST_ACCESS,
     TRAP_NO_HALT_FOUND,
     TRAP_ILLEGAL_OPERAND,
-} Trap; // exceptions that stop the execution on the virtual machine
+    TRAP_ILLEGAL_OPERATION, // doing arithmetic on floating points and ints together
+} Trap;                     // exceptions that stop the execution on the virtual machine
 
 typedef enum
 {
@@ -84,12 +87,12 @@ typedef enum
 typedef struct
 {
     Inst_Type type; // type of the instruction
-    word operand;   // operand of the instruction
+    double operand; // operand of the instruction
 } Inst;             // structure for the actual instruction
 
 typedef struct // structure defining the actual virtual machine
 {
-    word *stack;              // the stack of the virtual machine; the stack top is the end of the array
+    double *stack;            // the stack of the virtual machine; the stack top is the end of the array
     size_t stack_size;        // current stack size
     word instruction_pointer; // the address of the next instruction to be executed
     int halt;
@@ -97,8 +100,8 @@ typedef struct // structure defining the actual virtual machine
     size_t program_size; // number of instructions in the program
 } VirtualMachine;
 
-void push_to_not_resolved_yet(String_View label, size_t pointing_location);
-void push_to_label_array(String_View label, size_t pointing_location);
+void push_to_not_resolved_yet(String_View label, size_t inst_location);
+void push_to_label_array(String_View label, double pointing_location);
 const char *trap_as_cstr(Trap trap);
 const char *inst_type_as_asm_str(Inst_Type type);
 const char *inst_type_as_cstr(Inst_Type type);
@@ -139,6 +142,8 @@ const char *trap_as_cstr(Trap trap)
         return "TRAP_NO_HALT_FOUND";
     case TRAP_ILLEGAL_OPERAND:
         return "TRAP_ILLEGAL_OPERAND";
+    case TRAP_ILLEGAL_OPERATION:
+        return "TRAP_ILLEGAL_OPERATION";
     default:
         assert(00 && "trap_as_cstr: Unreachnable");
     }
@@ -208,30 +213,41 @@ const char *inst_type_as_asm_str(Inst_Type type)
     }
 }
 
-void push_to_not_resolved_yet(String_View label, size_t pointing_location)
+void push_to_not_resolved_yet(String_View label, size_t inst_location)
 {
-    not_resolved_yet[not_resolved_yet_counter].inst_location = pointing_location;
+    not_resolved_yet[not_resolved_yet_counter].inst_location = inst_location;
     not_resolved_yet[not_resolved_yet_counter].label = label;
     not_resolved_yet[not_resolved_yet_counter].resolved = false;
     not_resolved_yet_counter++;
 }
 
-void push_to_label_array(String_View label, size_t pointing_location)
+void push_to_label_array(String_View label, double pointing_location)
 {
     label_array[label_array_counter].label_pointing_location = pointing_location;
     label_array[label_array_counter].label = label;
     label_array_counter++;
 }
 
-
 void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
 {
     fprintf(stream, "Stack:\n");
     if (vm->stack_size > 0)
     {
+        // prints the stack, starting from 0 position to the end, in that order
         for (size_t i = 0; i < vm->stack_size; i++)
         {
-            fprintf(stream, " %ld\n", vm->stack[i]); // prints the stack, starting from 0 position to the end, in that order
+            if (is_nan(vm->stack[i]))
+            {
+
+                __int64_t element = return_value_signed(vm->stack[i]);
+                fprintf(stream, "%ld\n", element);
+            }
+            else
+            {
+                // printf("%lf\n", vm->stack[i]);
+                // print_bits(vm->stack[i]);
+                fprintf(stream, "%lf\n", vm->stack[i]);
+            }
         }
     }
     else
@@ -253,6 +269,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_OVERFLOW;
         }
+        print_bits(inst.operand);
         vm->stack[vm->stack_size++] = inst.operand; // push one word onto the stack
         vm->instruction_pointer++;
         break;
@@ -261,8 +278,26 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        vm->stack[vm->stack_size - 2] += vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
-        vm->stack_size -= 1;                                            // and remove the last element from the stack
+
+        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
+            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
+            __int64_t ans = operand1 + operand2;
+
+            double ans_ = 0;
+            set_signed_64int(&ans_, ans);
+            vm->stack[vm->stack_size - 2] = ans_;
+        }
+        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            vm->stack[vm->stack_size - 2] += vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+        }
+        else
+        {
+            return TRAP_ILLEGAL_OPERATION;
+        }
+        vm->stack_size -= 1; // and remove the last element from the stack
         vm->instruction_pointer++;
         break;
     case INST_MINUS:
@@ -270,7 +305,24 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        vm->stack[vm->stack_size - 2] -= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
+            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
+            __int64_t ans = operand1 - operand2;
+
+            double ans_ = 0;
+            set_signed_64int(&ans_, ans);
+            vm->stack[vm->stack_size - 2] = ans_;
+        }
+        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            vm->stack[vm->stack_size - 2] -= vm->stack[vm->stack_size - 1]; // subtract the last element on the stack to the second last element
+        }
+        else
+        {
+            return TRAP_ILLEGAL_OPERATION;
+        }
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
@@ -279,7 +331,24 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        vm->stack[vm->stack_size - 2] *= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
+            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
+            __int64_t ans = operand1 * operand2;
+
+            double ans_ = 0;
+            set_signed_64int(&ans_, ans);
+            vm->stack[vm->stack_size - 2] = ans_;
+        }
+        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            vm->stack[vm->stack_size - 2] *= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+        }
+        else
+        {
+            return TRAP_ILLEGAL_OPERATION;
+        }
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
@@ -288,11 +357,39 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if (!vm->stack[vm->stack_size - 1])
+        if (is_nan(vm->stack[vm->stack_size - 1]))
         {
-            return TRAP_DIV_BY_ZERO;
+            __int64_t operand = return_value_signed(vm->stack[vm->stack_size - 1]);
+            if (!operand)
+            {
+                return TRAP_DIV_BY_ZERO;
+            }
         }
-        vm->stack[vm->stack_size - 2] /= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+        else
+        {
+            if (vm->stack[vm->stack_size - 1] == 0.0)
+            {
+                return TRAP_DIV_BY_ZERO;
+            }
+        }
+        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
+            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
+            __int64_t ans = operand1 / operand2;
+
+            double ans_ = 0;
+            set_signed_64int(&ans_, ans);
+            vm->stack[vm->stack_size - 2] = ans_;
+        }
+        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            vm->stack[vm->stack_size - 2] /= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+        }
+        else
+        {
+            return TRAP_ILLEGAL_OPERATION;
+        }
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
@@ -300,11 +397,12 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->halt = 1;
         break;
     case INST_JMP:
-        if (inst.operand < 0 || (size_t)inst.operand >= vm->program_size)
+        __uint64_t opernd = return_value_unsigned(inst.operand);
+        if (opernd >= vm->program_size)
         {
             return TRAP_ILLEGAL_JMP;
         }
-        vm->instruction_pointer = inst.operand;
+        vm->instruction_pointer = opernd;
         break;
     case INST_EQ:
         if (vm->stack_size < 2)
@@ -316,18 +414,19 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->instruction_pointer++;
         break;
     case INST_JMP_IF:
+        __uint64_t opernd1 = return_value_unsigned(inst.operand);
         if (vm->stack_size < 1)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if (inst.operand < 0 || (size_t)inst.operand >= vm->program_size)
+        if ((opernd1 >= vm->program_size))
         {
             return TRAP_ILLEGAL_JMP;
         }
         if (vm->stack[vm->stack_size - 1])
         {
             vm->stack_size--;
-            vm->instruction_pointer = inst.operand;
+            vm->instruction_pointer = opernd1;
         }
         else
         {
@@ -335,20 +434,17 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         }
         break;
     case INST_DUP:
+        __uint64_t opernd2 = return_value_unsigned(inst.operand);
         if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
         }
-        if (inst.operand < 0)
-        {
-            return TRAP_ILLEGAL_OPERAND;
-        }
-        if ((__int64_t)vm->stack_size - 1 - inst.operand < 0)
+        if ((__int64_t)vm->stack_size - 1 - (__int64_t)(opernd2) < 0)
         {
             return TRAP_STACK_UNDERFLOW;
         }
         vm->stack_size++;
-        vm->stack[vm->stack_size - 1] = vm->stack[vm->stack_size - 2 - inst.operand];
+        vm->stack[vm->stack_size - 1] = vm->stack[vm->stack_size - 2 - opernd2];
         vm->instruction_pointer++;
         break;
     default:
@@ -390,7 +486,7 @@ void label_init()
 
 void vm_init(VirtualMachine *vm)
 {
-    vm->stack = malloc(sizeof(word) * vm_stack_capacity);
+    vm->stack = malloc(sizeof(double) * vm_stack_capacity);
     if (!vm->stack)
     {
         fprintf(stderr, "ERROR: stack allocation failed: %s\n", strerror(errno));
@@ -530,19 +626,35 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             fprintf(stderr, "push requires an operand\n");
             exit(EXIT_FAILURE);
         }
-        word operand = sv_to_int(&line);
+        // printf("%.*s%d\n", (int)line.count, line.data, (int)line.count);
+        double operand = sv_to_value(&line);
+        // printf("%lf\n", operand);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
+            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
             exit(EXIT_FAILURE);
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed value\n", (int)line.count, line.data);
             exit(EXIT_FAILURE);
         }
 
-        return (Inst){.type = INST_PUSH, .operand = operand};
+        if (is_fraction)
+        {
+            // print_bits(operand);
+            return (Inst){.type = INST_PUSH, .operand = operand};
+        }
+        else
+        {
+            __int64_t int1 = (__int64_t)operand;
+            // printf("%ld %lf\n", int1, operand);
+            set_signed_64int(&operand, int1);
+            // printf("%ld %lf\n", int1, operand);
+            // printf("%ld %ld\n", return_value_signed(operand), int1);
+
+            return (Inst){.type = INST_PUSH, .operand = operand};
+        }
     }
     else if (sv_eq(inst_name, cstr_as_sv("halt")))
     {
@@ -562,19 +674,31 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             fprintf(stderr, "dup requires an operand\n");
             exit(EXIT_FAILURE);
         }
-        word operand = sv_to_int(&line);
+        double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid integer\n", (int)line.count, line.data);
+            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
             exit(EXIT_FAILURE);
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
             exit(EXIT_FAILURE);
         }
 
-        return (Inst){.type = INST_DUP, .operand = operand};
+        if (is_fraction)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for dup instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else if (is_negative)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for dup instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else
+        {
+            set_unsigned_64int(&operand, (__int64_t)operand);
+            return (Inst){.type = INST_PUSH, .operand = operand};
+        }
     }
     else if (sv_eq(inst_name, cstr_as_sv("jmp")))
     {
@@ -583,7 +707,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             fprintf(stderr, "jmp requires an operand\n");
             exit(EXIT_FAILURE);
         }
-        word operand = sv_to_int(&line);
+        double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
         {
             push_to_not_resolved_yet(line, current_program_counter);
@@ -591,11 +715,23 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
             exit(EXIT_FAILURE);
         }
 
-        return (Inst){.type = INST_JMP, .operand = operand};
+        if (is_fraction)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for jmp instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else if (is_negative)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for jmp instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else
+        {
+            set_unsigned_64int(&operand, (__int64_t)operand);
+            return (Inst){.type = INST_PUSH, .operand = operand};
+        }
     }
     else if (sv_eq(inst_name, cstr_as_sv("jmp_if")))
     {
@@ -604,7 +740,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             fprintf(stderr, "jmp_if requires an operand\n");
             exit(EXIT_FAILURE);
         }
-        word operand = sv_to_int(&line);
+        double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
         {
             push_to_not_resolved_yet(line, current_program_counter);
@@ -612,11 +748,23 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed integer\n", (int)line.count, line.data);
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
             exit(EXIT_FAILURE);
         }
 
-        return (Inst){.type = INST_JMP_IF, .operand = operand};
+        if (is_fraction)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for jmp_if instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else if (is_negative)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for jmp_if instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else
+        {
+            set_unsigned_64int(&operand, (__int64_t)operand);
+            return (Inst){.type = INST_PUSH, .operand = operand};
+        }
     }
     else if (sv_eq(inst_name, cstr_as_sv("plus")))
     {
@@ -689,6 +837,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         fprintf(stderr, "invalid instruction %.*s\n", (int)inst_name.count, inst_name.data);
         exit(EXIT_FAILURE);
     }
+
+    return (Inst){0};
 }
 
 size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity)
@@ -697,7 +847,6 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
 
     while (source.count > 0) // Process each line
     {
-        printf("Processing a new line...\n");
 
         if (program_size >= program_capacity)
         {
@@ -706,36 +855,32 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         }
 
         String_View line = sv_chop_by_delim(&source, '\n');
-        printf("Line after chop: '%.*s'\n", (int)line.count, line.data);
 
         line = sv_chop_by_delim(&line, '#'); // Remove comments
-        printf("Line after removing comments: '%.*s'\n", (int)line.count, line.data);
 
         sv_trim_left(&line);
         sv_trim_right(&line);
 
         if (line.count == 0) // Ignore empty lines
         {
-            printf("Ignoring empty line\n");
             continue;
         }
 
         // Check for a label
         String_View label = sv_chop_by_delim(&line, ':');
-        printf("%d\n", line.count);
         if (*(line.data - 1) == ':') // If there's a label
         {
-            printf("Found label: '%.*s', pointing to address %zu\n", (int)label.count, label.data, program_size);
             if (label_array_counter >= label_capacity)
             {
                 fprintf(stderr, "ERROR: label capacity exceeded at label: %.*s\n", (int)label.count, label.data);
             }
-            push_to_label_array(label, program_size);
+            double operand = 0;
+            set_unsigned_64int(&operand, (__uint64_t)program_size);
+            push_to_label_array(label, operand);
 
             if (line.count > 0) // instruction remaining after the label
             {
                 sv_trim_left(&line);
-                printf("Translating instruction: '%.*s'\n", (int)line.count, line.data);
                 program[program_size] = vm_translate_line(line, program_size);
                 program_size++;
             }
@@ -743,20 +888,17 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         }
 
         line = label;
-        printf("Translating instruction: '%.*s'\n", (int)line.count, line.data);
         program[program_size] = vm_translate_line(line, program_size);
         program_size++;
     }
 
     // Resolve labels
-    printf("Resolving labels...\n");
     for (size_t i = 0; i < not_resolved_yet_counter; i++)
     {
         for (size_t j = 0; j < label_array_counter; j++)
         {
             if (sv_eq(not_resolved_yet[i].label, label_array[j].label))
             {
-                printf("Resolving label '%.*s' to location %zu\n", (int)label_array[j].label.count, label_array[j].label.data, label_array[j].label_pointing_location);
                 program[not_resolved_yet[i].inst_location].operand = label_array[j].label_pointing_location;
                 not_resolved_yet[i].resolved = true;
             }
@@ -779,7 +921,6 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         exit(EXIT_FAILURE);
     }
 
-    printf("Translation complete. Program size: %zu\n", program_size);
     return program_size;
 }
 

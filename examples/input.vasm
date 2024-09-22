@@ -1,11 +1,4 @@
-loop: push 2          
-
-
-push 0
-push 1
-
-#helllooo
-
-jmp 2                  
-jmp loop                       
-halt              
+push 12
+push 12.0
+plus
+halt

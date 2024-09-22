@@ -15,20 +15,20 @@
 #define TYPE_SIGNED_64INT (__uint8_t)2
 #define TYPE_POINTER (__uint8_t)3
 
-static inline void print_bits(double value);
-static inline bool is_nan(double value);
-static inline void set_signed_64int(double *value_nan, __int64_t actual_value);
-static inline void set_unsigned_64int(double *value_nan, __uint64_t actual_value);
-static inline void set_pointer(double *value_nan, __uint64_t actual_value);
-static inline __uint8_t return_type(double value);
-static inline __int64_t return_value_signed(double value);
-static inline __uint64_t return_value_unsigned(double value);
-static inline __uint64_t return_value_pointer(double value);
+void print_bits(double value);
+bool is_nan(double value);
+void set_signed_64int(double *value_nan, __int64_t actual_value);
+void set_unsigned_64int(double *value_nan, __uint64_t actual_value);
+void set_pointer(double *value_nan, __uint64_t actual_value);
+__uint8_t return_type(double value);
+__int64_t return_value_signed(double value);
+__uint64_t return_value_unsigned(double value);
+__uint64_t return_value_pointer(double value);
 
 #ifndef NAN_IMPLEMENTATION
 #define NAN_IMPLEMENTATION
 
-static inline void print_bits(double value)
+void print_bits(double value)
 {
     __int8_t *byte_arr = (__int8_t *)&value; // x86-64 is a little endian machine
 
@@ -44,7 +44,7 @@ static inline void print_bits(double value)
     printf("\n");
 }
 
-static inline bool is_nan(double value)
+bool is_nan(double value)
 {
     // this next line is actually really clever holy fuck
     __int64_t bits = (*(__int64_t *)&value); // store the raw bytes of double without typecasting; __uint64_t bits = value would just typecast
@@ -57,7 +57,7 @@ static inline bool is_nan(double value)
     return (exponent == 0x7FF) && (mantissa != 0);
 }
 
-static inline void set_signed_64int(double *value_nan, __int64_t actual_value)
+void set_signed_64int(double *value_nan, __int64_t actual_value)
 {
     // Check for value range
     if (actual_value > (1L << 47) || actual_value < -(1L << 47))
@@ -74,17 +74,17 @@ static inline void set_signed_64int(double *value_nan, __int64_t actual_value)
 
     *value_nan = (*(double *)&bits); */
 
-   __int64_t bits = 0;
-   bits |= ((__int64_t)TYPE_SIGNED_64INT) << 48L;
-   bits |= 0xFFF0000000000000;
-   actual_value &= 0x0000FFFFFFFFFFFF;
+    __int64_t bits = 0;
+    bits |= ((__int64_t)TYPE_SIGNED_64INT) << 48L;
+    bits |= 0xFFF0000000000000;
+    actual_value &= 0x0000FFFFFFFFFFFF;
 
-   bits != actual_value;
+    bits |= actual_value;
 
-   *value_nan = (*(double *)&bits);
+    *value_nan = (*(double *)&bits);
 }
 
-static inline void set_unsigned_64int(double *value_nan, __uint64_t actual_value)
+void set_unsigned_64int(double *value_nan, __uint64_t actual_value)
 {
     if (actual_value > (1UL << 47))
     {
@@ -101,7 +101,7 @@ static inline void set_unsigned_64int(double *value_nan, __uint64_t actual_value
     *value_nan = (*(double *)&bits);
 }
 
-static inline void set_pointer(double *value_nan, __uint64_t actual_value)
+void set_pointer(double *value_nan, __uint64_t actual_value)
 {
     if (actual_value > (1UL << 47)) // check signed against signed; unsigned against unsigned; dont mix
     {
@@ -118,7 +118,7 @@ static inline void set_pointer(double *value_nan, __uint64_t actual_value)
     *value_nan = (*(double *)&bits);
 }
 
-static inline __uint8_t return_type(double value)
+__uint8_t return_type(double value)
 {
     __uint64_t bits = (*(__uint64_t *)&value);
     __uint8_t result = (__uint8_t)((bits >> 48) & 0x000000000000000FUL);
@@ -129,7 +129,7 @@ static inline __uint8_t return_type(double value)
     return result;
 }
 
-static inline __int64_t return_value_signed(double value)
+__int64_t return_value_signed(double value)
 {
     __int64_t bits = (*(__int64_t *)&value);
     __int64_t val = 0x0000FFFFFFFFFFFF & bits;
@@ -138,14 +138,14 @@ static inline __int64_t return_value_signed(double value)
     return (__int64_t)val;
 }
 
-static inline __uint64_t return_value_unsigned(double value)
+__uint64_t return_value_unsigned(double value)
 {
     __uint64_t bits = (*(__uint64_t *)&value);
     __uint64_t val = 0x0000FFFFFFFFFFFFUL & bits;
     return (__uint64_t)val;
 }
 
-static inline __uint64_t return_value_pointer(double value)
+__uint64_t return_value_pointer(double value)
 {
     __uint64_t bits = (*(__uint64_t *)&value);
     __uint64_t val = 0x0000FFFFFFFFFFFFUL & bits;
@@ -160,3 +160,5 @@ static inline __uint64_t return_value_pointer(double value)
 #endif // NAN_IMPLEMENTATION
 
 #endif // NAN_BOXING_H
+
+// fix vm_dump_stack
