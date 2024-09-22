@@ -74,15 +74,19 @@ typedef enum
     INST_NOP = 0, // does nothing but increment the instruction pointer; if the program array is just zero, it will all be no-ops;
     INST_PUSH,    // push a word to the stack top; we assume that our stack grows downwards
     INST_DUP,     // duplicates the element at the position stack_top - addr at the top of the stack; stack_top = stack_size - 1
-    INST_PLUS,    // add the last element on stack onto the second last element, and remove the last element from the stack
-    INST_MINUS,   // subtract the last element on the stack from the second last element, and remove the last element from the stack
-    INST_MULT,    // multiply the last element on the stack to the second last element, and remove the last element from the stack
-    INST_DIV,     // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
-    INST_JMP,     // unconditional jump
-    INST_HALT,    // halt the machine
-    INST_JMP_IF,  // jump to an address if the last element on the stack is non-zero; do not jump otherwise
-    INST_EQ,      // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
-} Inst_Type;      // enum for the instruction types
+    INST_IPLUS,   // add the last element on stack onto the second last element, and remove the last element from the stack
+    INST_FPLUS,
+    INST_IMINUS, // subtract the last element on the stack from the second last element, and remove the last element from the stack
+    INST_FMINUS,
+    INST_IMULT, // multiply the last element on the stack to the second last element, and remove the last element from the stack
+    INST_FMULT,
+    INST_IDIV, // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
+    INST_FDIV,
+    INST_JMP,    // unconditional jump
+    INST_HALT,   // halt the machine
+    INST_JMP_IF, // jump to an address if the last element on the stack is non-zero; do not jump otherwise
+    INST_EQ,     // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
+} Inst_Type;     // enum for the instruction types
 
 typedef struct
 {
@@ -157,14 +161,22 @@ const char *inst_type_as_cstr(Inst_Type type)
         return "INST_PUSH";
     case INST_NOP:
         return "INST_NOP";
-    case INST_PLUS:
-        return "INST_PLUS";
-    case INST_MULT:
-        return "INST_MULT";
-    case INST_DIV:
-        return "INST_DIV";
-    case INST_MINUS:
-        return "INST_MINUS";
+    case INST_IPLUS:
+        return "INST_IPLUS";
+    case INST_IMULT:
+        return "INST_IMULT";
+    case INST_IDIV:
+        return "INST_IDIV";
+    case INST_IMINUS:
+        return "INST_IMINUS";
+    case INST_FPLUS:
+        return "INST_FPLUS";
+    case INST_FMULT:
+        return "INST_FMULT";
+    case INST_FDIV:
+        return "INST_FDIV";
+    case INST_FMINUS:
+        return "INST_FMINUS";
     case INST_HALT:
         return "INST_HALT";
     case INST_JMP:
@@ -189,14 +201,22 @@ const char *inst_type_as_asm_str(Inst_Type type)
         return "push";
     case INST_NOP:
         return "nop";
-    case INST_PLUS:
-        return "plus";
-    case INST_MULT:
-        return "mult";
-    case INST_DIV:
-        return "div";
-    case INST_MINUS:
-        return "minus";
+    case INST_IPLUS:
+        return "iplus";
+    case INST_IMULT:
+        return "imult";
+    case INST_IDIV:
+        return "idiv";
+    case INST_IMINUS:
+        return "iminus";
+    case INST_FPLUS:
+        return "fplus";
+    case INST_FDIV:
+        return "fdiv";
+    case INST_FMINUS:
+        return "fminus";
+    case INST_FMULT:
+        return "fmult";
     case INST_HALT:
         return "halt";
     case INST_JMP:
@@ -273,123 +293,125 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack[vm->stack_size++] = inst.operand; // push one word onto the stack
         vm->instruction_pointer++;
         break;
-    case INST_PLUS:
+    case INST_FPLUS:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
         }
 
-        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        vm->stack[vm->stack_size - 2] += vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+        vm->stack_size -= 1;                                            // and remove the last element from the stack
+        vm->instruction_pointer++;
+        break;
+    case INST_IPLUS:
+        if (vm->stack_size < 2)
         {
-            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
-            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
-            __int64_t ans = operand1 + operand2;
+            return TRAP_STACK_UNDERFLOW;
+        }
 
-            double ans_ = 0;
-            set_signed_64int(&ans_, ans);
-            vm->stack[vm->stack_size - 2] = ans_;
-        }
-        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
-        {
-            vm->stack[vm->stack_size - 2] += vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
-        }
-        else
-        {
-            return TRAP_ILLEGAL_OPERATION;
-        }
+        __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        __int64_t ans = operand1 + operand2;
+
+        double ans_ = 0;
+        set_signed_64int(&ans_, ans);
+        vm->stack[vm->stack_size - 2] = ans_;
+
         vm->stack_size -= 1; // and remove the last element from the stack
         vm->instruction_pointer++;
         break;
-    case INST_MINUS:
+    case INST_FMINUS:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
-        {
-            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
-            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
-            __int64_t ans = operand1 - operand2;
 
-            double ans_ = 0;
-            set_signed_64int(&ans_, ans);
-            vm->stack[vm->stack_size - 2] = ans_;
-        }
-        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
-        {
-            vm->stack[vm->stack_size - 2] -= vm->stack[vm->stack_size - 1]; // subtract the last element on the stack to the second last element
-        }
-        else
-        {
-            return TRAP_ILLEGAL_OPERATION;
-        }
+        vm->stack[vm->stack_size - 2] -= vm->stack[vm->stack_size - 1]; // subtract the last element on the stack to the second last element
+
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
-    case INST_MULT:
+    case INST_IMINUS:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
-        {
-            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
-            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
-            __int64_t ans = operand1 * operand2;
 
-            double ans_ = 0;
-            set_signed_64int(&ans_, ans);
-            vm->stack[vm->stack_size - 2] = ans_;
-        }
-        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
-        {
-            vm->stack[vm->stack_size - 2] *= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
-        }
-        else
-        {
-            return TRAP_ILLEGAL_OPERATION;
-        }
+        __int64_t operand3 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        __int64_t operand4 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        __int64_t ans2 = operand3 - operand4;
+
+        double ans_2 = 0;
+        set_signed_64int(&ans_2, ans2);
+        vm->stack[vm->stack_size - 2] = ans_2;
+
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
-    case INST_DIV:
+    case INST_FMULT:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if (is_nan(vm->stack[vm->stack_size - 1]))
-        {
-            __int64_t operand = return_value_signed(vm->stack[vm->stack_size - 1]);
-            if (!operand)
-            {
-                return TRAP_DIV_BY_ZERO;
-            }
-        }
-        else
-        {
-            if (vm->stack[vm->stack_size - 1] == 0.0)
-            {
-                return TRAP_DIV_BY_ZERO;
-            }
-        }
-        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
-        {
-            __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
-            __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
-            __int64_t ans = operand1 / operand2;
 
-            double ans_ = 0;
-            set_signed_64int(&ans_, ans);
-            vm->stack[vm->stack_size - 2] = ans_;
-        }
-        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1]))
+        vm->stack[vm->stack_size - 2] *= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+
+        vm->stack_size -= 1;
+        vm->instruction_pointer++;
+        break;
+    case INST_IMULT:
+        if (vm->stack_size < 2)
         {
-            vm->stack[vm->stack_size - 2] /= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+            return TRAP_STACK_UNDERFLOW;
         }
-        else
+
+        __int64_t operand5 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        __int64_t operand6 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        __int64_t ans3 = operand5 * operand6;
+
+        double ans_3 = 0;
+        set_signed_64int(&ans_3, ans3);
+        vm->stack[vm->stack_size - 2] = ans_3;
+
+        vm->stack_size -= 1;
+        vm->instruction_pointer++;
+        break;
+    case INST_IDIV:
+        if (vm->stack_size < 2)
         {
-            return TRAP_ILLEGAL_OPERATION;
+            return TRAP_STACK_UNDERFLOW;
         }
+
+        __int64_t operand = return_value_signed(vm->stack[vm->stack_size - 1]);
+        if (!operand)
+        {
+            return TRAP_DIV_BY_ZERO;
+        }
+
+        __int64_t operand7 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        __int64_t operand8 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        __int64_t ans4 = operand7 / operand8;
+
+        double ans_4 = 0;
+        set_signed_64int(&ans_4, ans4);
+        vm->stack[vm->stack_size - 2] = ans_4;
+
+        vm->stack_size -= 1;
+        vm->instruction_pointer++;
+        break;
+    case INST_FDIV:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        if (vm->stack[vm->stack_size - 1] == 0.0)
+        {
+            return TRAP_DIV_BY_ZERO;
+        }
+
+        vm->stack[vm->stack_size - 2] /= vm->stack[vm->stack_size - 1]; // add the last element on the stack to the second last element
+
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
@@ -435,6 +457,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         break;
     case INST_DUP:
         __uint64_t opernd2 = return_value_unsigned(inst.operand);
+        // printf("%ld\n", opernd2);
         if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
@@ -697,7 +720,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         else
         {
             set_unsigned_64int(&operand, (__int64_t)operand);
-            return (Inst){.type = INST_PUSH, .operand = operand};
+            return (Inst){.type = INST_DUP, .operand = operand};
         }
     }
     else if (sv_eq(inst_name, cstr_as_sv("jmp")))
@@ -766,49 +789,93 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             return (Inst){.type = INST_PUSH, .operand = operand};
         }
     }
-    else if (sv_eq(inst_name, cstr_as_sv("plus")))
+    else if (sv_eq(inst_name, cstr_as_sv("iplus")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "plus doesn't require an operand\n");
+            fprintf(stderr, "iplus doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_PLUS};
+        return (Inst){.type = INST_IPLUS};
     }
-    else if (sv_eq(inst_name, cstr_as_sv("minus")))
+    else if (sv_eq(inst_name, cstr_as_sv("fplus")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "minus doesn't require an operand\n");
+            fprintf(stderr, "fplus doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_MINUS};
+        return (Inst){.type = INST_FPLUS};
     }
-    else if (sv_eq(inst_name, cstr_as_sv("mult")))
+    else if (sv_eq(inst_name, cstr_as_sv("iminus")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "mult doesn't require an operand\n");
+            fprintf(stderr, "iminus doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_MULT};
+        return (Inst){.type = INST_IMINUS};
     }
-    else if (sv_eq(inst_name, cstr_as_sv("div")))
+    else if (sv_eq(inst_name, cstr_as_sv("fminus")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "div doesn't require an operand\n");
+            fprintf(stderr, "fminus doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_DIV};
+        return (Inst){.type = INST_FMINUS};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("imult")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "imult doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_IMULT};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("fmult")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "fmult doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_FMULT};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("idiv")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "idiv doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_IDIV};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("fdiv")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "fdiv doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_FDIV};
     }
     else if (sv_eq(inst_name, cstr_as_sv("eq")))
     {

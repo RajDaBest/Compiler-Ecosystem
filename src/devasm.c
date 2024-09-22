@@ -49,22 +49,42 @@ int main(int argc, char **argv)
             }
             break;
 
-        case INST_PLUS:
+        case INST_IPLUS:
             // Plus instruction, no operand
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
-        case INST_MINUS:
+        case INST_IMINUS:
             // Minus instruction, no operand
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
-        case INST_MULT:
+        case INST_IMULT:
             // Multiply instruction, no operand
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
-        case INST_DIV:
+        case INST_IDIV:
+            // Divide instruction, no operand
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_FPLUS:
+            // Plus instruction, no operand
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_FMINUS:
+            // Minus instruction, no operand
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_FMULT:
+            // Multiply instruction, no operand
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_FDIV:
             // Divide instruction, no operand
             printf("%s\n", inst_type_as_asm_str(type));
             break;
