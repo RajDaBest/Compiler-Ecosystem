@@ -95,6 +95,9 @@ typedef enum
     INST_LSR,    // logical shift right; for unsigned
     INST_ASR,    // arithmetic shift right;  for signed
     INST_SL,     // shift left; for both signed and unsigned
+    INST_AND,
+    INST_OR,
+    INST_NOT,
 } Inst_Type;     // enum for the instruction types
 
 typedef struct
@@ -214,6 +217,12 @@ const char *inst_type_as_cstr(Inst_Type type)
         return "INST_LSR";
     case INST_SL:
         return "INST_SL";
+    case INST_AND:
+        return "INST_AND";
+    case INST_OR:
+        return "INST_OR";
+    case INST_NOT:
+        return "INST_NOT";
     default:
         assert(0 && "inst_type_as_cstr: unreachable");
         break;
@@ -272,6 +281,12 @@ const char *inst_type_as_asm_str(Inst_Type type)
         return "lsr";
     case INST_SL:
         return "sl";
+    case INST_NOT:
+        return "not";
+    case INST_AND:
+        return "and";
+    case INST_OR:
+        return "or";
     default:
         assert(0 && "inst_type_as_asm_str: unreachable");
         break;
@@ -649,6 +664,90 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack[vm->stack_size - 1] = vm->stack[vm->stack_size - 2 - opernd222];
         vm->instruction_pointer++;
         break;
+    case INST_AND:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        if(is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            __uint64_t raw_1 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
+            __uint64_t raw_2 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
+            __uint64_t raw_3 = ((raw_1 & raw_2) | 0xFFF1000000000000);
+            vm->stack[vm->stack_size - 2] = *(double *)&raw_3;
+        }
+        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1])) // for some reason i provide functionality of bitwise operations between any two floating point numbers!
+        {
+            __uint64_t raw_1 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
+            __uint64_t raw_2 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
+            __uint64_t raw_3 = ((raw_1 & raw_2));
+            vm->stack[vm->stack_size - 2] = *(double *)&raw_3;
+        }
+        else
+        {
+            return TRAP_ILLEGAL_OPERATION;
+        }
+
+        vm->stack_size--;
+        vm->instruction_pointer++;
+        break;
+
+    case INST_OR:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        if(is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            __uint64_t raw_4 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
+            __uint64_t raw_5 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
+            __uint64_t raw_6 = ((raw_4 | raw_5) | 0xFFF1000000000000);
+            vm->stack[vm->stack_size - 2] = *(double *)&raw_6;
+        }
+        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1])) // for some reason i provide functionality of bitwise operations between any two floating point numbers!
+        {
+            __uint64_t raw_4 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
+            __uint64_t raw_5 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
+            __uint64_t raw_6 = ((raw_4 | raw_5));
+            vm->stack[vm->stack_size - 2] = *(double *)&raw_6;
+        }
+        else
+        {
+            return TRAP_ILLEGAL_OPERATION;
+        }
+
+        vm->stack_size--;
+        vm->instruction_pointer++;
+        break;
+
+    case INST_NOT:
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        if(is_nan(vm->stack[vm->stack_size - 1]))
+        {
+            __uint64_t raw_7 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
+            __uint64_t raw_8 = (~raw_7 | 0xFFF1000000000000);
+            vm->stack[vm->stack_size - 1] = *(double *)&raw_8;
+        }
+        else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1])) // for some reason i provide functionality of bitwise operations between any two floating point numbers!
+        {
+            __uint64_t raw_7 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
+            __uint64_t raw_8 = (~raw_7);
+            vm->stack[vm->stack_size - 2] = *(double *)&raw_8;
+        }
+        else
+        {
+            return TRAP_ILLEGAL_OPERATION;
+        }
+
+        vm->instruction_pointer++;
+        break;
+
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
         break;
@@ -1264,6 +1363,39 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             set_unsigned_64int(&operand, (__uint64_t)operand);
             return (Inst){.type = INST_SL, .operand = operand};
         }
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("and")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "udiv doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_AND};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("or")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "udiv doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_OR};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("not")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "udiv doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_NOT};
     }
     else
     {

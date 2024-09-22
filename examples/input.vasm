@@ -1,5 +1,5 @@
-hello: 
-spush -2
-asr 2
-jmp hello 
-halt
+hello:
+	fpush 2.0
+	upush 0
+	or
+	halt

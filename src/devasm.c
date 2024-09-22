@@ -138,6 +138,18 @@ int main(int argc, char **argv)
             printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
             break;
 
+        case INST_AND:
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_OR:
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+        
+        case INST_NOT:
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
         default:
             fprintf(stderr, "file '%s' corrupted\n", argv[1]);
             break;
