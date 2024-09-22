@@ -1,5 +1,5 @@
-hello: push 12.0
-push 2.0
+hello: fpush 12.0
+fpush 2.0
 fminus
 dup 0
 jmp hello 

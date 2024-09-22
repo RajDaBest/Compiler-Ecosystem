@@ -25,16 +25,19 @@ int main(int argc, char **argv)
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
-        case INST_PUSH:
+        case INST_UPUSH:
             // Push instruction, prints operand
-            if (is_nan(program[i].operand))
-            {
-                printf("%s %ld\n", inst_type_as_asm_str(type), return_value_signed(program[i].operand));
-            }
-            else
-            {
-                printf("%s %lf\n", inst_type_as_asm_str(type), program[i].operand);
-            }
+            printf("%s %ld\n", inst_type_as_asm_str(type), return_value_signed(program[i].operand));
+            break;
+
+        case INST_SPUSH:
+
+            printf("%s %ld\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
+            break;
+
+        case INST_FPUSH:
+
+            printf("%s %lf\n", inst_type_as_asm_str(type), program[i].operand);
             break;
 
         case INST_DUP:
@@ -49,43 +52,63 @@ int main(int argc, char **argv)
             }
             break;
 
-        case INST_IPLUS:
-            // Plus instruction, no operand
+        case INST_UPLUS:
+            // Push instruction, prints operand
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
-        case INST_IMINUS:
-            // Minus instruction, no operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
+        case INST_SPLUS:
 
-        case INST_IMULT:
-            // Multiply instruction, no operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_IDIV:
-            // Divide instruction, no operand
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
         case INST_FPLUS:
-            // Plus instruction, no operand
+
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_UMINUS:
+            // Push instruction, prints operand
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_SMINUS:
+
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
         case INST_FMINUS:
-            // Minus instruction, no operand
+
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_UMULT:
+            // Push instruction, prints operand
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_SMULT:
+
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
         case INST_FMULT:
-            // Multiply instruction, no operand
+
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_SDIV:
+            // Push instruction, prints operand
+            printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_UDIV:
+
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 
         case INST_FDIV:
-            // Divide instruction, no operand
+
             printf("%s\n", inst_type_as_asm_str(type));
             break;
 

@@ -72,15 +72,21 @@ typedef enum
 typedef enum
 {
     INST_NOP = 0, // does nothing but increment the instruction pointer; if the program array is just zero, it will all be no-ops;
-    INST_PUSH,    // push a word to the stack top; we assume that our stack grows downwards
+    INST_SPUSH,    // push a word to the stack top; we assume that our stack grows downwards
+    INST_UPUSH,
+    INST_FPUSH,
     INST_DUP,     // duplicates the element at the position stack_top - addr at the top of the stack; stack_top = stack_size - 1
-    INST_IPLUS,   // add the last element on stack onto the second last element, and remove the last element from the stack
+    INST_SPLUS,   // add the last element on stack onto the second last element, and remove the last element from the stack
+    INST_UPLUS,
     INST_FPLUS,
-    INST_IMINUS, // subtract the last element on the stack from the second last element, and remove the last element from the stack
+    INST_SMINUS, // subtract the last element on the stack from the second last element, and remove the last element from the stack
+    INST_UMINUS,
     INST_FMINUS,
-    INST_IMULT, // multiply the last element on the stack to the second last element, and remove the last element from the stack
+    INST_SMULT, // multiply the last element on the stack to the second last element, and remove the last element from the stack
+    INST_UMULT,
     INST_FMULT,
-    INST_IDIV, // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
+    INST_SDIV, // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
+    INST_UDIV,
     INST_FDIV,
     INST_JMP,    // unconditional jump
     INST_HALT,   // halt the machine
@@ -157,18 +163,30 @@ const char *inst_type_as_cstr(Inst_Type type)
 {
     switch (type)
     {
-    case INST_PUSH:
-        return "INST_PUSH";
+    case INST_FPUSH:
+        return "INST_FPUSH";
+    case INST_UPUSH:
+        return "INST_UPUSH";
+    case INST_SPUSH:
+        return "INST_SPUSH";
     case INST_NOP:
         return "INST_NOP";
-    case INST_IPLUS:
-        return "INST_IPLUS";
-    case INST_IMULT:
-        return "INST_IMULT";
-    case INST_IDIV:
+    case INST_SPLUS:
+        return "INST_SPLUS";
+    case INST_SMULT:
+        return "INST_SMULT";
+    case INST_SDIV:
         return "INST_IDIV";
-    case INST_IMINUS:
+    case INST_SMINUS:
         return "INST_IMINUS";
+    case INST_UPLUS:
+        return "INST_UPLUS";
+    case INST_UMULT:
+        return "INST_UMULT";
+    case INST_UDIV:
+        return "INST_UDIV";
+    case INST_UMINUS:
+        return "INST_UMINUS";
     case INST_FPLUS:
         return "INST_FPLUS";
     case INST_FMULT:
@@ -197,18 +215,30 @@ const char *inst_type_as_asm_str(Inst_Type type)
 {
     switch (type)
     {
-    case INST_PUSH:
-        return "push";
+    case INST_SPUSH:
+        return "spush";
+    case INST_UPUSH:
+        return "upush";
+    case INST_FPUSH:
+        return "fpush";
     case INST_NOP:
         return "nop";
-    case INST_IPLUS:
-        return "iplus";
-    case INST_IMULT:
-        return "imult";
-    case INST_IDIV:
-        return "idiv";
-    case INST_IMINUS:
-        return "iminus";
+    case INST_SPLUS:
+        return "splus";
+    case INST_SMULT:
+        return "smult";
+    case INST_SDIV:
+        return "sdiv";
+    case INST_SMINUS:
+        return "sminus";
+    case INST_UPLUS:
+        return "uplus";
+    case INST_UMULT:
+        return "umult";
+    case INST_UDIV:
+        return "udiv";
+    case INST_UMINUS:
+        return "uminus";
     case INST_FPLUS:
         return "fplus";
     case INST_FDIV:
@@ -284,7 +314,25 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
     case INST_NOP:
         vm->instruction_pointer++;
         break;
-    case INST_PUSH:
+    case INST_FPUSH:
+        if (vm->stack_size >= vm_stack_capacity)
+        {
+            return TRAP_STACK_OVERFLOW;
+        }
+        // print_bits(inst.operand);
+        vm->stack[vm->stack_size++] = inst.operand; // push one word onto the stack
+        vm->instruction_pointer++;
+        break;
+    case INST_SPUSH:
+        if (vm->stack_size >= vm_stack_capacity)
+        {
+            return TRAP_STACK_OVERFLOW;
+        }
+        // print_bits(inst.operand);
+        vm->stack[vm->stack_size++] = inst.operand; // push one word onto the stack
+        vm->instruction_pointer++;
+        break;
+    case INST_UPUSH:
         if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
@@ -303,7 +351,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack_size -= 1;                                            // and remove the last element from the stack
         vm->instruction_pointer++;
         break;
-    case INST_IPLUS:
+    case INST_SPLUS:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
@@ -320,6 +368,23 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack_size -= 1; // and remove the last element from the stack
         vm->instruction_pointer++;
         break;
+    case INST_UPLUS:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        __uint64_t opernd11 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        __uint64_t opernd12 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        __uint64_t ns = opernd11 + opernd12;
+
+        double ns_ = 0;
+        set_unsigned_64int(&ns_, ns);
+        vm->stack[vm->stack_size - 2] = ns_;
+
+        vm->stack_size -= 1; // and remove the last element from the stack
+        vm->instruction_pointer++;
+        break;
     case INST_FMINUS:
         if (vm->stack_size < 2)
         {
@@ -331,7 +396,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
-    case INST_IMINUS:
+    case INST_SMINUS:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
@@ -348,6 +413,23 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
+    case INST_UMINUS:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        __uint64_t opernd3 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        __uint64_t opernd4 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        __uint64_t ns2 = opernd3 - opernd4;
+
+        double ns_2 = 0;
+        set_unsigned_64int(&ns_2, ns2);
+        vm->stack[vm->stack_size - 2] = ns_2;
+
+        vm->stack_size -= 1;
+        vm->instruction_pointer++;
+        break;
     case INST_FMULT:
         if (vm->stack_size < 2)
         {
@@ -359,7 +441,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
-    case INST_IMULT:
+    case INST_SMULT:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
@@ -376,14 +458,31 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->stack_size -= 1;
         vm->instruction_pointer++;
         break;
-    case INST_IDIV:
+    case INST_UMULT:
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __int64_t operand = return_value_signed(vm->stack[vm->stack_size - 1]);
-        if (!operand)
+        __uint64_t opernd5 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        __uint64_t opernd6 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        __uint64_t ns3 = opernd5 * opernd6;
+
+        double ns_3 = 0;
+        set_unsigned_64int(&ns_3, ns3);
+        vm->stack[vm->stack_size - 2] = ns_3;
+
+        vm->stack_size -= 1;
+        vm->instruction_pointer++;
+        break;
+    case INST_SDIV:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        __int64_t opernd1 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        if (!opernd1)
         {
             return TRAP_DIV_BY_ZERO;
         }
@@ -395,6 +494,29 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         double ans_4 = 0;
         set_signed_64int(&ans_4, ans4);
         vm->stack[vm->stack_size - 2] = ans_4;
+
+        vm->stack_size -= 1;
+        vm->instruction_pointer++;
+        break;
+    case INST_UDIV:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        __uint64_t opernd2 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        if (!opernd2)
+        {
+            return TRAP_DIV_BY_ZERO;
+        }
+
+        __uint64_t opernd7 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        __uint64_t opernd8 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        __uint64_t ns4 = opernd7 / opernd8;
+
+        double ns_4 = 0;
+        set_unsigned_64int(&ns_4, ns4);
+        vm->stack[vm->stack_size - 2] = ns_4;
 
         vm->stack_size -= 1;
         vm->instruction_pointer++;
@@ -436,19 +558,19 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         vm->instruction_pointer++;
         break;
     case INST_JMP_IF:
-        __uint64_t opernd1 = return_value_unsigned(inst.operand);
+        __uint64_t opernd111 = return_value_unsigned(inst.operand);
         if (vm->stack_size < 1)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        if ((opernd1 >= vm->program_size))
+        if ((opernd111 >= vm->program_size))
         {
             return TRAP_ILLEGAL_JMP;
         }
         if (vm->stack[vm->stack_size - 1])
         {
             vm->stack_size--;
-            vm->instruction_pointer = opernd1;
+            vm->instruction_pointer = opernd111;
         }
         else
         {
@@ -456,18 +578,18 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         }
         break;
     case INST_DUP:
-        __uint64_t opernd2 = return_value_unsigned(inst.operand);
+        __uint64_t opernd222 = return_value_unsigned(inst.operand);
         // printf("%ld\n", opernd2);
         if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
         }
-        if ((__int64_t)vm->stack_size - 1 - (__int64_t)(opernd2) < 0)
+        if ((__int64_t)vm->stack_size - 1 - (__int64_t)(opernd222) < 0)
         {
             return TRAP_STACK_UNDERFLOW;
         }
         vm->stack_size++;
-        vm->stack[vm->stack_size - 1] = vm->stack[vm->stack_size - 2 - opernd2];
+        vm->stack[vm->stack_size - 1] = vm->stack[vm->stack_size - 2 - opernd222];
         vm->instruction_pointer++;
         break;
     default:
@@ -642,7 +764,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     bool has_operand = line.count > 0;
     // line should point to a null byte now if the instruction doesn't have any operands
 
-    if (sv_eq(inst_name, cstr_as_sv("push")))
+    if (sv_eq(inst_name, cstr_as_sv("fpush")))
     {
         if (!has_operand)
         {
@@ -663,21 +785,65 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             exit(EXIT_FAILURE);
         }
 
-        if (is_fraction)
+        return (Inst){.type = INST_FPUSH, .operand = operand};
+    }
+    if (sv_eq(inst_name, cstr_as_sv("spush")))
+    {
+        if (!has_operand)
         {
-            // print_bits(operand);
-            return (Inst){.type = INST_PUSH, .operand = operand};
+            fprintf(stderr, "push requires an operand\n");
+            exit(EXIT_FAILURE);
         }
-        else
+        // printf("%.*s%d\n", (int)line.count, line.data, (int)line.count);
+        double operand = sv_to_value(&line);
+        // printf("%lf\n", operand);
+        if (str_errno == FAILURE)
         {
-            __int64_t int1 = (__int64_t)operand;
-            // printf("%ld %lf\n", int1, operand);
-            set_signed_64int(&operand, int1);
-            // printf("%ld %lf\n", int1, operand);
-            // printf("%ld %ld\n", return_value_signed(operand), int1);
+            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
 
-            return (Inst){.type = INST_PUSH, .operand = operand};
+        __int64_t int1 = (__int64_t)operand;
+        // printf("%ld %lf\n", int1, operand);
+        set_signed_64int(&operand, int1);
+        // printf("%ld %lf\n", int1, operand);
+        // printf("%ld %ld\n", return_value_signed(operand), int1);
+
+        return (Inst){.type = INST_SPUSH, .operand = operand};
+    }
+    if (sv_eq(inst_name, cstr_as_sv("upush")))
+    {
+        if (!has_operand)
+        {
+            fprintf(stderr, "push requires an operand\n");
+            exit(EXIT_FAILURE);
         }
+        // printf("%.*s%d\n", (int)line.count, line.data, (int)line.count);
+        double operand = sv_to_value(&line);
+        // printf("%lf\n", operand);
+        if (str_errno == FAILURE)
+        {
+            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        __uint64_t int1 = (__uint64_t)operand;
+        // printf("%ld %lf\n", int1, operand);
+        set_unsigned_64int(&operand, int1);
+        // printf("%ld %lf\n", int1, operand);
+        // printf("%ld %ld\n", return_value_signed(operand), int1);
+
+        return (Inst){.type = INST_UPUSH, .operand = operand};
     }
     else if (sv_eq(inst_name, cstr_as_sv("halt")))
     {
@@ -752,8 +918,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         }
         else
         {
-            set_unsigned_64int(&operand, (__int64_t)operand);
-            return (Inst){.type = INST_PUSH, .operand = operand};
+            set_unsigned_64int(&operand, (__uint64_t)operand);
+            return (Inst){.type = INST_JMP, .operand = operand};
         }
     }
     else if (sv_eq(inst_name, cstr_as_sv("jmp_if")))
@@ -767,7 +933,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         if (str_errno == FAILURE)
         {
             push_to_not_resolved_yet(line, current_program_counter);
-            return (Inst){.type = INST_JMP, .operand = 0};
+            return (Inst){.type = INST_JMP_IF, .operand = 0};
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
@@ -785,20 +951,31 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         }
         else
         {
-            set_unsigned_64int(&operand, (__int64_t)operand);
-            return (Inst){.type = INST_PUSH, .operand = operand};
+            set_unsigned_64int(&operand, (__uint64_t)operand);
+            return (Inst){.type = INST_JMP_IF, .operand = operand};
         }
     }
-    else if (sv_eq(inst_name, cstr_as_sv("iplus")))
+    else if (sv_eq(inst_name, cstr_as_sv("splus")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "iplus doesn't require an operand\n");
+            fprintf(stderr, "splus doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_IPLUS};
+        return (Inst){.type = INST_SPLUS};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("uplus")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "uplus doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_UPLUS};
     }
     else if (sv_eq(inst_name, cstr_as_sv("fplus")))
     {
@@ -811,16 +988,27 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         // printf("yes\n");
         return (Inst){.type = INST_FPLUS};
     }
-    else if (sv_eq(inst_name, cstr_as_sv("iminus")))
+    else if (sv_eq(inst_name, cstr_as_sv("sminus")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "iminus doesn't require an operand\n");
+            fprintf(stderr, "sminus doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_IMINUS};
+        return (Inst){.type = INST_SMINUS};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("uminus")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "uminus doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_UMINUS};
     }
     else if (sv_eq(inst_name, cstr_as_sv("fminus")))
     {
@@ -833,16 +1021,27 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         // printf("yes\n");
         return (Inst){.type = INST_FMINUS};
     }
-    else if (sv_eq(inst_name, cstr_as_sv("imult")))
+    else if (sv_eq(inst_name, cstr_as_sv("smult")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "imult doesn't require an operand\n");
+            fprintf(stderr, "smult doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_IMULT};
+        return (Inst){.type = INST_SMULT};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("umult")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "umult doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_UMULT};
     }
     else if (sv_eq(inst_name, cstr_as_sv("fmult")))
     {
@@ -855,16 +1054,27 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         // printf("yes\n");
         return (Inst){.type = INST_FMULT};
     }
-    else if (sv_eq(inst_name, cstr_as_sv("idiv")))
+    else if (sv_eq(inst_name, cstr_as_sv("sdiv")))
     {
         if (has_operand)
         {
-            fprintf(stderr, "idiv doesn't require an operand\n");
+            fprintf(stderr, "sdiv doesn't require an operand\n");
             exit(EXIT_FAILURE);
         }
 
         // printf("yes\n");
-        return (Inst){.type = INST_IDIV};
+        return (Inst){.type = INST_SDIV};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("udiv")))
+    {
+        if (has_operand)
+        {
+            fprintf(stderr, "udiv doesn't require an operand\n");
+            exit(EXIT_FAILURE);
+        }
+
+        // printf("yes\n");
+        return (Inst){.type = INST_UDIV};
     }
     else if (sv_eq(inst_name, cstr_as_sv("fdiv")))
     {
