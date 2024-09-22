@@ -269,7 +269,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
         {
             return TRAP_STACK_OVERFLOW;
         }
-        print_bits(inst.operand);
+        // print_bits(inst.operand);
         vm->stack[vm->stack_size++] = inst.operand; // push one word onto the stack
         vm->instruction_pointer++;
         break;

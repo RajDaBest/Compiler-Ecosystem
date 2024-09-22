@@ -1,4 +1,5 @@
+hello: push 12
 push 12
-push 12.0
 plus
+jmp hello 
 halt
