@@ -1,6 +1,5 @@
-hello: fpush 12.0
-fpush 2.0
-fminus
-dup 0
+hello: 
+spush -2
+asr 2
 jmp hello 
 halt

@@ -42,14 +42,8 @@ int main(int argc, char **argv)
 
         case INST_DUP:
             // Duplicate, prints operand
-            if (is_nan(program[i].operand))
-            {
-                printf("%s %ld\n", inst_type_as_asm_str(type), return_value_signed(program[i].operand));
-            }
-            else
-            {
-                printf("%s %lf\n", inst_type_as_asm_str(type), program[i].operand);
-            }
+            printf("%s %ld\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
+
             break;
 
         case INST_UPLUS:
@@ -114,14 +108,7 @@ int main(int argc, char **argv)
 
         case INST_JMP:
             // Unconditional jump, prints operand
-            if (is_nan(program[i].operand))
-            {
-                printf("%s %ld\n", inst_type_as_asm_str(type), return_value_signed(program[i].operand));
-            }
-            else
-            {
-                printf("%s %lf\n", inst_type_as_asm_str(type), program[i].operand);
-            }
+            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
             break;
 
         case INST_HALT:
@@ -131,19 +118,24 @@ int main(int argc, char **argv)
 
         case INST_JMP_IF:
             // Conditional jump, prints operand
-            if (is_nan(program[i].operand))
-            {
-                printf("%s %ld\n", inst_type_as_asm_str(type), return_value_signed(program[i].operand));
-            }
-            else
-            {
-                printf("%s %lf\n", inst_type_as_asm_str(type), program[i].operand);
-            }
+            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
             break;
 
         case INST_EQ:
             // Equality check, no operand
             printf("%s\n", inst_type_as_asm_str(type));
+            break;
+
+        case INST_ASR:
+            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
+            break;
+
+        case INST_LSR:
+            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
+            break;
+
+        case INST_SL:
+            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
             break;
 
         default:

@@ -72,11 +72,11 @@ typedef enum
 typedef enum
 {
     INST_NOP = 0, // does nothing but increment the instruction pointer; if the program array is just zero, it will all be no-ops;
-    INST_SPUSH,    // push a word to the stack top; we assume that our stack grows downwards
+    INST_SPUSH,   // push a word to the stack top; we assume that our stack grows downwards
     INST_UPUSH,
     INST_FPUSH,
-    INST_DUP,     // duplicates the element at the position stack_top - addr at the top of the stack; stack_top = stack_size - 1
-    INST_SPLUS,   // add the last element on stack onto the second last element, and remove the last element from the stack
+    INST_DUP,   // duplicates the element at the position stack_top - addr at the top of the stack; stack_top = stack_size - 1
+    INST_SPLUS, // add the last element on stack onto the second last element, and remove the last element from the stack
     INST_UPLUS,
     INST_FPLUS,
     INST_SMINUS, // subtract the last element on the stack from the second last element, and remove the last element from the stack
@@ -92,6 +92,9 @@ typedef enum
     INST_HALT,   // halt the machine
     INST_JMP_IF, // jump to an address if the last element on the stack is non-zero; do not jump otherwise
     INST_EQ,     // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
+    INST_LSR,    // logical shift right; for unsigned
+    INST_ASR,    // arithmetic shift right;  for signed
+    INST_SL,     // shift left; for both signed and unsigned
 } Inst_Type;     // enum for the instruction types
 
 typedef struct
@@ -205,6 +208,12 @@ const char *inst_type_as_cstr(Inst_Type type)
         return "INST_EQU";
     case INST_DUP:
         return "INST_DUP";
+    case INST_ASR:
+        return "INST_ASR";
+    case INST_LSR:
+        return "INST_LSR";
+    case INST_SL:
+        return "INST_SL";
     default:
         assert(0 && "inst_type_as_cstr: unreachable");
         break;
@@ -257,6 +266,12 @@ const char *inst_type_as_asm_str(Inst_Type type)
         return "equ";
     case INST_DUP:
         return "dup";
+    case INST_ASR:
+        return "asr";
+    case INST_LSR:
+        return "lsr";
+    case INST_SL:
+        return "sl";
     default:
         assert(0 && "inst_type_as_asm_str: unreachable");
         break;
@@ -311,6 +326,48 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
     Inst inst = vm->program[vm->instruction_pointer];
     switch (inst.type)
     {
+    case INST_ASR:
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+        __uint64_t b1 = return_value_unsigned(inst.operand);
+        __int64_t a1 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        a1 >>= b1; // C right shift operator does arithmetic shift for signed operands and logical shift for unsigned ones
+        double c1 = 0;
+        set_signed_64int(&c1, a1);
+        vm->stack[vm->stack_size - 1] = c1;
+
+        vm->instruction_pointer++;
+        break;
+    case INST_LSR:
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+        __uint64_t b2 = return_value_unsigned(inst.operand);
+        __uint64_t a2 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        a2 >>= b2; // C right shift operator does arithmetic shift for signed operands and logical shift for unsigned ones
+        double c2 = 0;
+        set_signed_64int(&c2, a2);
+        vm->stack[vm->stack_size - 1] = c2;
+
+        vm->instruction_pointer++;
+        break;
+    case INST_SL:
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+        __uint64_t b3 = return_value_unsigned(inst.operand);
+        __uint64_t a3 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        a3 <<= b3; // C right shift operator does arithmetic shift for signed operands and logical shift for unsigned ones
+        double c3 = 0;
+        set_signed_64int(&c3, a3);
+        vm->stack[vm->stack_size - 1] = c3;
+
+        vm->instruction_pointer++;
+        break;
     case INST_NOP:
         vm->instruction_pointer++;
         break;
@@ -885,7 +942,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         }
         else
         {
-            set_unsigned_64int(&operand, (__int64_t)operand);
+            set_unsigned_64int(&operand, (__uint64_t)operand);
             return (Inst){.type = INST_DUP, .operand = operand};
         }
     }
@@ -1108,6 +1165,105 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
 
         // printf("yes\n");
         return (Inst){.type = INST_NOP};
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("asr")))
+    {
+        if (!has_operand)
+        {
+            fprintf(stderr, "asr requires an operand\n");
+            exit(EXIT_FAILURE);
+        }
+        double operand = sv_to_value(&line);
+        if (str_errno == FAILURE)
+        {
+            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        if (is_fraction)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for asr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else if (is_negative)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for asr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else
+        {
+            set_unsigned_64int(&operand, (__uint64_t)operand);
+            return (Inst){.type = INST_ASR, .operand = operand};
+        }
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("lsr")))
+    {
+        if (!has_operand)
+        {
+            fprintf(stderr, "lsr requires an operand\n");
+            exit(EXIT_FAILURE);
+        }
+        double operand = sv_to_value(&line);
+        if (str_errno == FAILURE)
+        {
+            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        if (is_fraction)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for lsr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else if (is_negative)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for lsr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else
+        {
+            set_unsigned_64int(&operand, (__uint64_t)operand);
+            return (Inst){.type = INST_LSR, .operand = operand};
+        }
+    }
+    else if (sv_eq(inst_name, cstr_as_sv("sl")))
+    {
+        if (!has_operand)
+        {
+            fprintf(stderr, "sl requires an operand\n");
+            exit(EXIT_FAILURE);
+        }
+        double operand = sv_to_value(&line);
+        if (str_errno == FAILURE)
+        {
+            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+        else if (str_errno == OPERAND_OVERFLOW)
+        {
+            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        if (is_fraction)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for sl instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else if (is_negative)
+        {
+            fprintf(stderr, "ERROR: illegal operand value for sl instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+        }
+        else
+        {
+            set_unsigned_64int(&operand, (__uint64_t)operand);
+            return (Inst){.type = INST_SL, .operand = operand};
+        }
     }
     else
     {
