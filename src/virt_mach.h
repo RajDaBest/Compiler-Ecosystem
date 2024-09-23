@@ -35,6 +35,8 @@
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 size_t label_capacity = VM_LABEL_CAPACITY;
+size_t line_no = 0;
+bool compilation_successful = true;
 
 typedef struct
 {
@@ -98,7 +100,7 @@ typedef enum
     INST_AND,
     INST_OR,
     INST_NOT,
-} Inst_Type;     // enum for the instruction types
+} Inst_Type; // enum for the instruction types
 
 typedef struct
 {
@@ -670,7 +672,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
             return TRAP_STACK_UNDERFLOW;
         }
 
-        if(is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
         {
             __uint64_t raw_1 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
             __uint64_t raw_2 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
@@ -699,7 +701,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
             return TRAP_STACK_UNDERFLOW;
         }
 
-        if(is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
+        if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
         {
             __uint64_t raw_4 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
             __uint64_t raw_5 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
@@ -728,7 +730,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm) // executes the instruction i
             return TRAP_STACK_UNDERFLOW;
         }
 
-        if(is_nan(vm->stack[vm->stack_size - 1]))
+        if (is_nan(vm->stack[vm->stack_size - 1]))
         {
             __uint64_t raw_7 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
             __uint64_t raw_8 = (~raw_7 | 0xFFF1000000000000);
@@ -924,21 +926,21 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "push requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> fpush requires an operand\n", line_no);
+            compilation_successful = false;
         }
         // printf("%.*s%d\n", (int)line.count, line.data, (int)line.count);
         double operand = sv_to_value(&line);
         // printf("%lf\n", operand);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit signed value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         return (Inst){.type = INST_FPUSH, .operand = operand};
@@ -947,21 +949,21 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "push requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: spush requires an operand\n", line_no);
+            compilation_successful = false;
         }
         // printf("%.*s%d\n", (int)line.count, line.data, (int)line.count);
         double operand = sv_to_value(&line);
         // printf("%lf\n", operand);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit signed value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         __int64_t int1 = (__int64_t)operand;
@@ -976,21 +978,20 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "push requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: upush requires an operand\n", line_no);
+            compilation_successful = false;
         }
         // printf("%.*s%d\n", (int)line.count, line.data, (int)line.count);
         double operand = sv_to_value(&line);
         // printf("%lf\n", operand);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit signed value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit signed value\n", line_no, (int)line.count, line.data);
         }
 
         __uint64_t int1 = (__uint64_t)operand;
@@ -1005,8 +1006,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "halt doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: halt doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1016,28 +1017,30 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "dup requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: dup requires an operand\n", line_no);
+            compilation_successful = false;
         }
         double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         if (is_fraction)
         {
-            fprintf(stderr, "ERROR: illegal operand value for dup instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for dup instruction: %.*s\nMust be an unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (is_negative)
         {
-            fprintf(stderr, "ERROR: illegal operand value for dup instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for dup instruction: %.*s\nMust be an unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else
         {
@@ -1049,8 +1052,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "jmp requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: jmp requires an operand\n", line_no);
+            compilation_successful = false;
         }
         double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
@@ -1060,17 +1063,19 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         if (is_fraction)
         {
-            fprintf(stderr, "ERROR: illegal operand value for jmp instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for jmp instruction: %.*s\nMust be an unsigned integral value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (is_negative)
         {
-            fprintf(stderr, "ERROR: illegal operand value for jmp instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for jmp instruction: %.*s\nMust be an unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else
         {
@@ -1082,8 +1087,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "jmp_if requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: jmp_if requires an operand\n", line_no);
+            compilation_successful = false;
         }
         double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
@@ -1093,17 +1098,19 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         if (is_fraction)
         {
-            fprintf(stderr, "ERROR: illegal operand value for jmp_if instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for jmp_if instruction: %.*s\nMust be an unsigned integral value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (is_negative)
         {
-            fprintf(stderr, "ERROR: illegal operand value for jmp_if instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for jmp_if instruction: %.*s\nMust be an unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else
         {
@@ -1115,8 +1122,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "splus doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: splus doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1126,8 +1133,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "uplus doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: uplus doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1137,8 +1144,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "fplus doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: fplus doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1148,8 +1155,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "sminus doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: sminus doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1159,8 +1166,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "uminus doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: uminus doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1170,8 +1177,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "fminus doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: fminus doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1181,8 +1188,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "smult doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: smult doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1192,8 +1199,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "umult doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: umult doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1203,8 +1210,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "fmult doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: fmult doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1214,8 +1221,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "sdiv doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: sdiv doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1225,8 +1232,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "udiv doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: udiv doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1236,8 +1243,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "fdiv doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: fdiv doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1247,8 +1254,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "eq doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: eq doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1258,8 +1265,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "nop doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: nop doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1269,28 +1276,30 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "asr requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> asr requires an operand\n", line_no);
+            compilation_successful = false;
         }
         double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         if (is_fraction)
         {
-            fprintf(stderr, "ERROR: illegal operand value for asr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for asr instruction: %.*s\nMust be an unsigned integral value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (is_negative)
         {
-            fprintf(stderr, "ERROR: illegal operand value for asr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for asr instruction: %.*s\nMust be an unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else
         {
@@ -1302,28 +1311,30 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "lsr requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> lsr requires an operand\n", line_no);
+            compilation_successful = false;
         }
         double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         if (is_fraction)
         {
-            fprintf(stderr, "ERROR: illegal operand value for lsr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for lsr instruction: %.*s\nMust be an unsigned integral value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (is_negative)
         {
-            fprintf(stderr, "ERROR: illegal operand value for lsr instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for lsr instruction: %.*s\nMust be an unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else
         {
@@ -1335,28 +1346,30 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (!has_operand)
         {
-            fprintf(stderr, "sl requires an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> sl requires an operand\n", line_no);
+            compilation_successful = false;
         }
         double operand = sv_to_value(&line);
         if (str_errno == FAILURE)
         {
-            fprintf(stderr, "ERROR: %.*s is not a valid value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (str_errno == OPERAND_OVERFLOW)
         {
-            fprintf(stderr, "ERROR: %.*s overflows a 64 bit unsigned value\n", (int)line.count, line.data);
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
 
         if (is_fraction)
         {
-            fprintf(stderr, "ERROR: illegal operand value for sl instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for sl instruction: %.*s\nMust be an unsigned integral value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else if (is_negative)
         {
-            fprintf(stderr, "ERROR: illegal operand value for sl instruction: %.*s\nMust be an unsigned value\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for sl instruction: %.*s\nMust be an unsigned value\n", line_no, (int)line.count, line.data);
+            compilation_successful = false;
         }
         else
         {
@@ -1368,8 +1381,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "udiv doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: and doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1379,8 +1392,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "udiv doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: or doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1390,8 +1403,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     {
         if (has_operand)
         {
-            fprintf(stderr, "udiv doesn't require an operand\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Line Number %zu -> ERROR: not doesn't require an operand\n", line_no);
+            compilation_successful = false;
         }
 
         // printf("yes\n");
@@ -1399,8 +1412,8 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     }
     else
     {
-        fprintf(stderr, "invalid instruction %.*s\n", (int)inst_name.count, inst_name.data);
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Line Number %zu -> ERROR: invalid instruction %.*s\n", line_no, (int)inst_name.count, inst_name.data);
+        compilation_successful = false;
     }
 
     return (Inst){0};
@@ -1412,13 +1425,13 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
 
     while (source.count > 0) // Process each line
     {
-
         if (program_size >= program_capacity)
         {
             fprintf(stderr, "Program Too Big\n");
-            exit(EXIT_FAILURE);
+            compilation_successful = false;
         }
 
+        line_no++;
         String_View line = sv_chop_by_delim(&source, '\n');
 
         line = sv_chop_by_delim(&line, '#'); // Remove comments
@@ -1437,7 +1450,7 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         {
             if (label_array_counter >= label_capacity)
             {
-                fprintf(stderr, "ERROR: label capacity exceeded at label: %.*s\n", (int)label.count, label.data);
+                fprintf(stderr, "Line Number %zu -> ERROR: label capacity exceeded at label: %.*s\n", line_no, (int)label.count, label.data);
             }
             double operand = 0;
             set_unsigned_64int(&operand, (__uint64_t)program_size);
@@ -1455,6 +1468,18 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         line = label;
         program[program_size] = vm_translate_line(line, program_size);
         program_size++;
+    }
+
+    if (program[program_size - 1].type != INST_HALT)
+    {
+        fprintf(stderr, "ERROR: halt required to mark the code end\n");
+        compilation_successful = false;
+    }
+    
+    if (!compilation_successful)
+    {
+        fprintf(stderr, "Compilation Failed\n");
+        compilation_successful = false;
     }
 
     // Resolve labels
@@ -1476,14 +1501,14 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
     {
         if (!not_resolved_yet[i].resolved)
         {
-            fprintf(stderr, "ERROR: cannot resolve label: %.*s\n", (int)not_resolved_yet[i].label.count, not_resolved_yet[i].label.data);
+            fprintf(stderr, "Line Number %zu -> ERROR: cannot resolve label: %.*s\n", line_no, (int)not_resolved_yet[i].label.count, not_resolved_yet[i].label.data);
             flag = true;
         }
     }
 
     if (flag)
     {
-        exit(EXIT_FAILURE);
+        compilation_successful = false;
     }
 
     return program_size;
@@ -1496,14 +1521,14 @@ String_View slurp_file(const char *file_path)
     if (!f)
     {
         fprintf(stderr, "ERROR: Couldn't open file: '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
+        compilation_successful = false;
     }
 
     if (fseek(f, 0, SEEK_END))
     {
         fclose(f);
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
+        compilation_successful = false;
     }
 
     ret = ftell(f);
@@ -1511,7 +1536,7 @@ String_View slurp_file(const char *file_path)
     {
         fclose(f);
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
+        compilation_successful = false;
     }
 
     // ret now contains the number of bytes in the file
@@ -1519,14 +1544,14 @@ String_View slurp_file(const char *file_path)
     {
         fclose(f);
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
+        compilation_successful = false;
     }
 
     char *buffer = malloc(ret);
     if (!buffer)
     {
         fprintf(stderr, "ERROR: Couldn't allocate memory for file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
+        compilation_successful = false;
     }
 
     int ret_val = fread(buffer, 1, ret, f);
@@ -1534,7 +1559,7 @@ String_View slurp_file(const char *file_path)
     {
         fclose(f);
         fprintf(stderr, "Could not read the file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
+        compilation_successful = false;
     }
 
     fclose(f);
