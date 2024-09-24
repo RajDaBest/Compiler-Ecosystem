@@ -1,0 +1,6 @@
+
+upush 3
+fpush 6.7
+upush 4
+uplus 0
+halt

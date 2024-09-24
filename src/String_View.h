@@ -7,8 +7,7 @@
 #include <string.h>
 #include <ctype.h>
 
-
-typedef struct 
+typedef struct
 {
     size_t count;
     char *data;
@@ -82,7 +81,7 @@ void sv_trim_right(String_View *line)
 
 void sv_trim_side_comments(String_View *line)
 {
-    for(size_t i = 0; i < line->count; i++)
+    for (size_t i = 0; i < line->count; i++)
     {
         if (line->data[i] == '#')
         {
@@ -112,8 +111,66 @@ bool sv_eq(String_View a, String_View b)
 
 bool is_fraction = false;
 bool is_negative = false;
+/*
+bool is_integer_register = false;
+bool is_floating_point_register = false;
+bool invalid_operand = false;
+bool integer_register_count_exceed = false;
+bool floating_point_register_count_exceed = false;
+
+size_t sv_to_reg(String_View *op)
+{
+    is_integer_register = false;
+    is_floating_point_register = false;
+    invalid_operand = false;
+    floating_point_register_count_exceed = false;
+
+    if (op->data[0] == 'r')
+    {
+        is_integer_register = true;
+        is_floating_point_register = false;
+    }
+    else if (op->data[0] == 'x')
+    {
+        is_integer_register = false;
+        is_floating_point_register = true;
+    }
+    else
+    {
+        invalid_operand = true;
+    }
+
+    String_View register_number = {.count = op->count - 1, .data = op->data + 1};
+    size_t num = 0;
+
+    for (size_t i = 0; i < register_number.count; i++)
+    {
+        char ch = register_number.data[i];
+
+        int dig = ch - '0';
+        if (dig < 0 || dig > 9)
+        {
+            invalid_operand = true;
+            return -1;
+        }
+
+        num = num * 10 + dig;
+    }
+
+    if (is_integer_register && num >= integer_register_no)
+    {
+        integer_register_count_exceed = true;
+    }
+    else if (is_floating_point_register && num >= floating_point_register_no)
+    {
+        floating_point_register_count_exceed = true;
+    }
+
+    return num;
+} */
 
 double sv_to_value(String_View *op)
+
 {
     double num = 0;
     double fraction_part = 0;
@@ -125,7 +182,7 @@ double sv_to_value(String_View *op)
     for (size_t i = 0; i < op->count; i++)
     {
         char ch = op->data[i];
-        
+
         // Check for negative sign
         if (ch == '-')
         {

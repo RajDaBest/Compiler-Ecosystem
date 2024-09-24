@@ -1,4 +1,7 @@
-fpush 3.0
-fpush 8.9
-fplus
+# arctan(x) = sum from r = 0 to infinity of ((-1) ^ r) (x ^ (2r + 1)) / (2r + 1)
+
+fpush 1.0
+upush 2
+spush -5
+pop 0
 halt
