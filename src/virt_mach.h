@@ -1928,7 +1928,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     sv_trim_right(&line);
     bool has_operand_value = line.count > 0;
 
-    for (size_t i = 1; i <= (size_t)INST_COUNT; i++)
+    for (size_t i = 1; i < (size_t)INST_COUNT; i++) //run uptil the second last instruction in the enum since it's actually the last valid defined instruction
     {
         if (sv_eq(inst_name, cstr_as_sv(get_inst_name(i))))
         {

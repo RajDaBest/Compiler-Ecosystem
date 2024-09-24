@@ -1,5 +1,4 @@
-label:
-	empty
-	upush 8
-	empty
-	halt
+fpush 3.0
+fpush 8.9
+fplus
+halt
