@@ -22,7 +22,7 @@ typedef __int64_t word;
 
 int str_errno = SUCCESS;
 
-String_View cstr_as_sv(char *cstr);
+String_View cstr_as_sv(const char *cstr);
 String_View sv_chop_by_delim(String_View *sv, const char delim);
 void sv_trim_left(String_View *line);
 void sv_trim_right(String_View *line);
@@ -32,7 +32,7 @@ double sv_to_value(String_View *op);
 
 #ifdef _SV_IMPLEMENTATION
 
-String_View cstr_as_sv(char *cstr)
+String_View cstr_as_sv(const char *cstr)
 {
     return (String_View){
         .count = strlen(cstr),

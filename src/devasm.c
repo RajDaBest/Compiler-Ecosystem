@@ -17,143 +17,24 @@ int main(int argc, char **argv)
 
     for (size_t i = 0; i < program_size; i++)
     {
-        Inst_Type type = program[i].type;
-        switch (type)
+        printf("%s ", inst_name_list[program[i].type]);
+        if (has_operand[program[i].type])
         {
-        case INST_NOP:
-            // No operation
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_UPUSH:
-            // Push instruction, prints operand
-            printf("%s %ld\n", inst_type_as_asm_str(type), return_value_signed(program[i].operand));
-            break;
-
-        case INST_SPUSH:
-
-            printf("%s %ld\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
-            break;
-
-        case INST_FPUSH:
-
-            printf("%s %lf\n", inst_type_as_asm_str(type), program[i].operand);
-            break;
-
-        case INST_DUP:
-            // Duplicate, prints operand
-            printf("%s %ld\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
-
-            break;
-
-        case INST_UPLUS:
-            // Push instruction, prints operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_SPLUS:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_FPLUS:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_UMINUS:
-            // Push instruction, prints operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_SMINUS:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_FMINUS:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_UMULT:
-            // Push instruction, prints operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_SMULT:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_FMULT:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_SDIV:
-            // Push instruction, prints operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_UDIV:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_FDIV:
-
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_JMP:
-            // Unconditional jump, prints operand
-            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
-            break;
-
-        case INST_HALT:
-            // Halt instruction, no operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_JMP_IF:
-            // Conditional jump, prints operand
-            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
-            break;
-
-        case INST_EQ:
-            // Equality check, no operand
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_ASR:
-            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
-            break;
-
-        case INST_LSR:
-            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
-            break;
-
-        case INST_SL:
-            printf("%s %lu\n", inst_type_as_asm_str(type), return_value_unsigned(program[i].operand));
-            break;
-
-        case INST_AND:
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        case INST_OR:
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-        
-        case INST_NOT:
-            printf("%s\n", inst_type_as_asm_str(type));
-            break;
-
-        default:
-            fprintf(stderr, "file '%s' corrupted\n", argv[1]);
-            break;
+            __uint8_t op_type = operand_type[program[i].type];
+            if (op_type == TYPE_DOUBLE)
+            {
+                printf("%lf", program[i].operand);
+            }
+            else if (op_type == TYPE_SIGNED_64INT)
+            {
+                printf("%ld", return_value_signed(program[i].operand));
+            }
+            else if (op_type == TYPE_UNSIGNED_64INT)
+            {
+                printf("%lu", return_value_unsigned(program[i].operand));
+            }
         }
+        printf("\n");
     }
     return EXIT_SUCCESS;
 }

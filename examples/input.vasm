@@ -1,5 +1,5 @@
-hello:
-	fpush 2.0
-	upush 0
-	or 12343
-	and 543536
+label:
+	empty
+	upush 8
+	empty
+	halt
