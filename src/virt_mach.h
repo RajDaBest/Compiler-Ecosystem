@@ -73,7 +73,7 @@ typedef enum
 
 typedef enum
 {
-    INST_NOP = 0, // does nothing but increment the instruction pointer; if the program array is just zero, it will all be no-ops;
+    INST_NOP = 1, // does nothing but increment the instruction pointer; if the program array is just zero, it will all be no-ops;
     INST_SPUSH,   // push a word to the stack top; we assume that our stack grows downwards
     INST_UPUSH,
     INST_FPUSH,
@@ -101,83 +101,8 @@ typedef enum
     INST_OR,
     INST_NOT,
     INST_EMPTY,
+    INST_COUNT,
 } Inst_Type; // enum for the instruction types
-
-const char *const inst_name_list[] = {
-    [INST_NOP] = "nop",       // does nothing but increment the instruction pointer; if the program array is just zero, it will all be no-ops
-    [INST_SPUSH] = "spush",   // push a signed word to the stack top; we assume that our stack grows downwards
-    [INST_UPUSH] = "upush",   // push an unsigned word to the stack top
-    [INST_FPUSH] = "fpush",   // push a floating point number to the stack top
-    [INST_DUP] = "dup",       // duplicate the element at the position stack_top - addr at the top of the stack
-    [INST_SPLUS] = "splus",   // add the last signed element on the stack to the second last element, and remove the last element
-    [INST_UPLUS] = "uplus",   // add the last unsigned element on the stack to the second last element, and remove the last element
-    [INST_FPLUS] = "fplus",   // add the last floating point element on the stack to the second last element, and remove the last element
-    [INST_SMINUS] = "sminus", // subtract the last signed element from the second last element, and remove the last element
-    [INST_UMINUS] = "uminus", // subtract the last unsigned element from the second last element, and remove the last element
-    [INST_FMINUS] = "fminus", // subtract the last floating point element from the second last element, and remove the last element
-    [INST_SMULT] = "smult",   // multiply the last signed element with the second last element, and remove the last element
-    [INST_UMULT] = "umult",   // multiply the last unsigned element with the second last element, and remove the last element
-    [INST_FMULT] = "fmult",   // multiply the last floating point element with the second last element, and remove the last element
-    [INST_SDIV] = "sdiv",     // divide the second last signed element by the last element, store the result in the second last element, and remove the last element
-    [INST_UDIV] = "udiv",     // divide the second last unsigned element by the last element, store the result in the second last element, and remove the last element
-    [INST_FDIV] = "fdiv",     // divide the second last floating point element by the last element, store the result in the second last element, and remove the last element
-    [INST_JMP] = "jmp",       // unconditional jump
-    [INST_HALT] = "halt",     // halt the machine
-    [INST_JMP_IF] = "jmp_if", // conditional jump if the last element on the stack is non-zero
-    [INST_EQ] = "eq",         // check if the second last element is equal to the last element, set result in second last element, remove the last element
-    [INST_LSR] = "lsr",       // logical shift right for unsigned integers
-    [INST_ASR] = "asr",       // arithmetic shift right for signed integers
-    [INST_SL] = "sl",         // shift left for both signed and unsigned integers
-    [INST_AND] = "and",       // bitwise AND
-    [INST_OR] = "or",         // bitwise OR
-    [INST_NOT] = "not",       // bitwise NOT
-    [INST_EMPTY] = "empty",   // checks if the stack is empty; if it is, pushes unsigned integer 1 on the stack; pushes unsigned integer 0 on the stack otherwise
-};
-
-const int has_operand[] = {
-    [INST_NOP] = 0,    // no operand
-    [INST_SPUSH] = 1,  // requires operand
-    [INST_UPUSH] = 1,  // requires operand
-    [INST_FPUSH] = 1,  // requires operand
-    [INST_DUP] = 1,    // requires operand
-    [INST_SPLUS] = 0,  // no operand
-    [INST_UPLUS] = 0,  // no operand
-    [INST_FPLUS] = 0,  // no operand
-    [INST_SMINUS] = 0, // no operand
-    [INST_UMINUS] = 0, // no operand
-    [INST_FMINUS] = 0, // no operand
-    [INST_SMULT] = 0,  // no operand
-    [INST_UMULT] = 0,  // no operand
-    [INST_FMULT] = 0,  // no operand
-    [INST_SDIV] = 0,   // no operand
-    [INST_UDIV] = 0,   // no operand
-    [INST_FDIV] = 0,   // no operand
-    [INST_JMP] = 1,    // requires operand (jump address)
-    [INST_HALT] = 0,   // no operand
-    [INST_JMP_IF] = 1, // requires operand (conditional jump address)
-    [INST_EQ] = 0,     // no operand
-    [INST_LSR] = 1,    // requires operand (shift count)
-    [INST_ASR] = 1,    // requires operand (shift count)
-    [INST_SL] = 1,     // requires operand (shift count)
-    [INST_AND] = 0,    // no operand
-    [INST_OR] = 0,     // no operand
-    [INST_NOT] = 0,    // no operand
-    [INST_EMPTY] = 0,
-};
-
-const __uint8_t operand_type[] = {
-    [INST_SPUSH] = TYPE_SIGNED_64INT,
-    [INST_UPUSH] = TYPE_UNSIGNED_64INT,
-    [INST_FPUSH] = TYPE_DOUBLE,
-    [INST_JMP] = TYPE_UNSIGNED_64INT,
-    [INST_JMP_IF] = TYPE_UNSIGNED_64INT,
-    [INST_LSR] = TYPE_UNSIGNED_64INT,
-    [INST_ASR] = TYPE_UNSIGNED_64INT,
-    [INST_SL] = TYPE_UNSIGNED_64INT,
-};
-
-// after these three arrays have been defined, changing the order of the names in enum will result in the change in their underlying
-// integer values which will fuck up this above defined array; so add only at the end of the enum
 
 typedef struct
 {
@@ -204,7 +129,9 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm);
 static int handle_shift(VirtualMachine *vm, Inst inst, bool is_arithmetic);
 static int handle_push(VirtualMachine *vm, Inst inst);
 static int handle_arithmetic(VirtualMachine *vm, Inst inst);
-
+const char *get_inst_name(Inst_Type inst);
+bool has_operand_function(Inst_Type inst);
+__uint8_t get_operand_type(Inst_Type inst);
 int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction inst on vm
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size);
 void label_init();
@@ -221,6 +148,161 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
 String_View slurp_file(const char *file_path);
 
 #ifdef _VM_IMPLEMENTATION
+
+const char *get_inst_name(Inst_Type inst)
+{
+    switch (inst)
+    {
+    case INST_NOP:
+        return "nop";
+    case INST_SPUSH:
+        return "spush";
+    case INST_UPUSH:
+        return "upush";
+    case INST_FPUSH:
+        return "fpush";
+    case INST_DUP:
+        return "dup";
+    case INST_SPLUS:
+        return "splus";
+    case INST_UPLUS:
+        return "uplus";
+    case INST_FPLUS:
+        return "fplus";
+    case INST_SMINUS:
+        return "sminus";
+    case INST_UMINUS:
+        return "uminus";
+    case INST_FMINUS:
+        return "fminus";
+    case INST_SMULT:
+        return "smult";
+    case INST_UMULT:
+        return "umult";
+    case INST_FMULT:
+        return "fmult";
+    case INST_SDIV:
+        return "sdiv";
+    case INST_UDIV:
+        return "udiv";
+    case INST_FDIV:
+        return "fdiv";
+    case INST_JMP:
+        return "jmp";
+    case INST_HALT:
+        return "halt";
+    case INST_JMP_IF:
+        return "jmp_if";
+    case INST_EQ:
+        return "eq";
+    case INST_LSR:
+        return "lsr";
+    case INST_ASR:
+        return "asr";
+    case INST_SL:
+        return "sl";
+    case INST_AND:
+        return "and";
+    case INST_OR:
+        return "or";
+    case INST_NOT:
+        return "not";
+    case INST_EMPTY:
+        return "empty";
+    default:
+        return NULL; // Invalid instruction
+    }
+}
+
+bool has_operand_function(Inst_Type inst)
+{
+    switch (inst)
+    {
+    case INST_NOP:
+        return 0;
+    case INST_SPUSH:
+        return 1;
+    case INST_UPUSH:
+        return 1;
+    case INST_FPUSH:
+        return 1;
+    case INST_DUP:
+        return 1;
+    case INST_SPLUS:
+        return 0;
+    case INST_UPLUS:
+        return 0;
+    case INST_FPLUS:
+        return 0;
+    case INST_SMINUS:
+        return 0;
+    case INST_UMINUS:
+        return 0;
+    case INST_FMINUS:
+        return 0;
+    case INST_SMULT:
+        return 0;
+    case INST_UMULT:
+        return 0;
+    case INST_FMULT:
+        return 0;
+    case INST_SDIV:
+        return 0;
+    case INST_UDIV:
+        return 0;
+    case INST_FDIV:
+        return 0;
+    case INST_JMP:
+        return 1;
+    case INST_HALT:
+        return 0;
+    case INST_JMP_IF:
+        return 1;
+    case INST_EQ:
+        return 0;
+    case INST_LSR:
+        return 1;
+    case INST_ASR:
+        return 1;
+    case INST_SL:
+        return 1;
+    case INST_AND:
+        return 0;
+    case INST_OR:
+        return 0;
+    case INST_NOT:
+        return 0;
+    case INST_EMPTY:
+        return 0;
+    default:
+        return -1; // Invalid instruction
+    }
+}
+
+__uint8_t get_operand_type(Inst_Type inst)
+{
+    switch (inst)
+    {
+    case INST_SPUSH:
+        return TYPE_SIGNED_64INT;
+    case INST_UPUSH:
+        return TYPE_UNSIGNED_64INT;
+    case INST_FPUSH:
+        return TYPE_DOUBLE;
+    case INST_JMP:
+        return TYPE_UNSIGNED_64INT;
+    case INST_JMP_IF:
+        return TYPE_UNSIGNED_64INT;
+    case INST_LSR:
+        return TYPE_UNSIGNED_64INT;
+    case INST_ASR:
+        return TYPE_UNSIGNED_64INT;
+    case INST_SL:
+        return TYPE_UNSIGNED_64INT;
+    default:
+        return 0; // No specific operand type or invalid instruction
+    }
+}
 
 const char *trap_as_cstr(Trap trap)
 {
@@ -1235,7 +1317,7 @@ int vm_exec_program(VirtualMachine *vm, __int64_t limit)
     }
     while (!vm->halt && limit != 0)
     {
-        fprintf(stdout, "%s\n", inst_name_list[vm->program[vm->instruction_pointer].type]);
+        fprintf(stdout, "%s\n", get_inst_name(vm->program[vm->instruction_pointer].type));
         ret = vm_execute_at_inst_pointer(vm);
         vm_dump_stack(stdout, vm);
         if (ret != TRAP_OK)
@@ -1846,19 +1928,19 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
     sv_trim_right(&line);
     bool has_operand_value = line.count > 0;
 
-    for (size_t i = 0; i < ARRAY_SIZE(inst_name_list); i++)
+    for (size_t i = 1; i <= (size_t)INST_COUNT; i++)
     {
-        if (sv_eq(inst_name, cstr_as_sv(inst_name_list[i])))
+        if (sv_eq(inst_name, cstr_as_sv(get_inst_name(i))))
         {
-            if (has_operand[i] != has_operand_value)
+            if (has_operand_function(i) != has_operand_value)
             {
                 fprintf(stderr, "Line Number %zu -> ERROR: %s %s an operand\n",
-                        line_no, inst_name_list[i], has_operand[i] ? "requires" : "doesn't require");
+                        line_no, get_inst_name(i), has_operand_function(i) ? "requires" : "doesn't require");
                 compilation_successful = false;
                 return (Inst){0};
             }
 
-            if (!has_operand[i])
+            if (!has_operand_function(i))
             {
                 return (Inst){.type = i};
             }
@@ -1880,22 +1962,22 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             {
                 fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit %s value\n",
                         line_no, (int)line.count, line.data,
-                        operand_type[i] == TYPE_SIGNED_64INT ? "signed" : "unsigned");
+                        get_operand_type(i) == TYPE_SIGNED_64INT ? "signed" : "unsigned");
                 compilation_successful = false;
                 return (Inst){0};
             }
 
-            if (operand_type[i] == TYPE_SIGNED_64INT)
+            if (get_operand_type(i) == TYPE_SIGNED_64INT)
             {
                 set_signed_64int(&operand, (__int64_t)operand);
             }
-            else if (operand_type[i] == TYPE_UNSIGNED_64INT)
+            else if (get_operand_type(i) == TYPE_UNSIGNED_64INT)
             {
                 if (is_fraction || is_negative)
                 {
                     fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for %s instruction: %.*s\n"
                                     "Must be an unsigned integral value\n",
-                            line_no, inst_name_list[i], (int)line.count, line.data);
+                            line_no, get_inst_name(i), (int)line.count, line.data);
                     compilation_successful = false;
                     return (Inst){0};
                 }

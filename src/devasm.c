@@ -17,10 +17,10 @@ int main(int argc, char **argv)
 
     for (size_t i = 0; i < program_size; i++)
     {
-        printf("%s ", inst_name_list[program[i].type]);
-        if (has_operand[program[i].type])
+        printf("%s ", get_inst_name(program[i].type));
+        if (has_operand_function(program[i].type))
         {
-            __uint8_t op_type = operand_type[program[i].type];
+            __uint8_t op_type = get_operand_type(program[i].type);
             if (op_type == TYPE_DOUBLE)
             {
                 printf("%lf", program[i].operand);
