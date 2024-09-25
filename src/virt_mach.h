@@ -13,6 +13,7 @@
 #define VM_STACK_CAPACITY 1024
 #define VM_PROGRAM_CAPACITY 1024
 #define VM_LABEL_CAPACITY 128
+#define VM_EQU_CAPACITY 128
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
 #define MAKE_INST_DUP(rel_addr) {.type = INST_DUP, .operand = (rel_addr)}
@@ -35,6 +36,7 @@
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 size_t label_capacity = VM_LABEL_CAPACITY;
+size_t equ_label_capacity = VM_EQU_CAPACITY;
 size_t line_no = 0;
 bool compilation_successful = true;
 
@@ -138,7 +140,7 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction 
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size);
 void label_init();
 void vm_init(VirtualMachine *vm);
-int vm_exec_program(VirtualMachine *vm, __int64_t limit);
+int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
 void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path);
 size_t vm_load_program_from_file(Inst *program, const char *file_path);
@@ -330,6 +332,10 @@ __uint8_t get_operand_type(Inst_Type inst)
 
     // Stack manipulation
     case INST_POP:
+        return TYPE_UNSIGNED_64INT;
+
+    case INST_ADUP:
+    case INST_RDUP:
         return TYPE_UNSIGNED_64INT;
 
     default:
@@ -709,7 +715,7 @@ static int handle_jump(VirtualMachine *vm, Inst inst)
     {
         if (vm->stack_size < 1)
             return TRAP_STACK_UNDERFLOW;
-        if (vm->stack[vm->stack_size - 1])
+        if (return_value_unsigned(vm->stack[vm->stack_size - 1]))
         {
             vm->stack_size--;
             vm->instruction_pointer = jump_addr;
@@ -980,7 +986,7 @@ void vm_init(VirtualMachine *vm)
     vm->halt = 0;
 }
 
-int vm_exec_program(VirtualMachine *vm, __int64_t limit)
+int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug)
 {
     int ret;
     if (vm->program[vm->program_size - 1].type != INST_HALT)
@@ -988,7 +994,11 @@ int vm_exec_program(VirtualMachine *vm, __int64_t limit)
         return TRAP_NO_HALT_FOUND;
     }
     while (!vm->halt && limit != 0)
-    {
+    {   
+        if(debug)
+        {
+            getchar();
+        }
         fprintf(stdout, "%s\n", get_inst_name(vm->program[vm->instruction_pointer].type));
         ret = vm_execute_at_inst_pointer(vm);
         vm_dump_stack(stdout, vm);
@@ -1090,8 +1100,10 @@ size_t vm_load_program_from_file(Inst *program, const char *file_path)
 Inst vm_translate_line(String_View line, size_t current_program_counter)
 {
     String_View inst_name = sv_chop_by_delim(&line, ' ');
+
     sv_trim_left(&line);
     sv_trim_right(&line);
+
     bool has_operand_value = line.count > 0;
 
     for (size_t i = 1; i < (size_t)INST_COUNT; i++) // run uptil the second last instruction in the enum since it's actually the last valid defined instruction
@@ -1119,6 +1131,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
                     push_to_not_resolved_yet(line, current_program_counter);
                     return (Inst){.type = i, .operand = 0};
                 }
+
                 fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n",
                         line_no, (int)line.count, line.data);
                 compilation_successful = false;
@@ -1246,6 +1259,7 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         {
             program[program_size] = vm_translate_line(label, program_size);
             program_size++;
+            continue;
         }
     }
 

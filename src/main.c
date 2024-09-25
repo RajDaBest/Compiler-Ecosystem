@@ -2,16 +2,16 @@
 #include "virt_mach.h"
 
 void print_usage_and_exit() {
-    fprintf(stderr, "Usage: ./virtmach -action <anc|run> [-stack-size <size>] [-program-capacity <size>] [-limit <n>] <input> [output]\n");
-    fprintf(stderr, "  -action <anc|run>         Action to perform ('anc' to assemble, 'run' to execute)\n");
-    fprintf(stderr, "  -stack-size <size>        Optional stack size (default: 1024)\n");
-    fprintf(stderr, "  -program-capacity <size>  Optional program capacity (default: 1024)\n");
-    fprintf(stderr, "  -limit <n>                Optional instruction limit, -1 for no limit (default: -1)\n");
-    fprintf(stderr, "  <input>                   Input file (for 'anc' or 'run')\n");
-    fprintf(stderr, "  [output]                  Output file (only for 'anc' action)\n");
+    fprintf(stderr, "Usage: ./virtmach --action <anc|run> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--debug] <input> [output]\n");
+    fprintf(stderr, "  --action <anc|run>         Action to perform ('anc' to assemble, 'run' to execute)\n");
+    fprintf(stderr, "  --stack-size <size>        Optional stack size (default: 1024)\n");
+    fprintf(stderr, "  --program-capacity <size>  Optional program capacity (default: 1024)\n");
+    fprintf(stderr, "  --limit <n>                Optional instruction limit, -1 for no limit (default: -1)\n");
+    fprintf(stderr, "  --debug                    Enable debug mode (optional)\n");
+    fprintf(stderr, "  <input>                    Input file (for 'anc' or 'run')\n");
+    fprintf(stderr, "  [output]                   Output file (only for 'anc' action)\n");
     exit(EXIT_FAILURE);
 }
-
 
 __int64_t parse_non_negative_int(const char *str) {
     __int64_t value = atoll(str);
@@ -24,6 +24,7 @@ __int64_t parse_non_negative_int(const char *str) {
 
 int main(int argc, char **argv) {
     __int64_t limit = -1;  // Default instruction limit: unlimited (-1)
+    int debug = 0;         // Default debug mode: disabled
     if (argc < 3) {
         print_usage_and_exit();
     }
@@ -33,30 +34,32 @@ int main(int argc, char **argv) {
     const char *output = NULL;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-action") == 0) {
+        if (strcmp(argv[i], "--action") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "ERROR: Missing value for -action.\n");
+                fprintf(stderr, "ERROR: Missing value for --action.\n");
                 print_usage_and_exit();
             }
             action = argv[++i];
-        } else if (strcmp(argv[i], "-stack-size") == 0) {
+        } else if (strcmp(argv[i], "--stack-size") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "ERROR: Missing value for -stack-size.\n");
+                fprintf(stderr, "ERROR: Missing value for --stack-size.\n");
                 print_usage_and_exit();
             }
             vm_stack_capacity = parse_non_negative_int(argv[++i]);
-        } else if (strcmp(argv[i], "-program-capacity") == 0) {
+        } else if (strcmp(argv[i], "--program-capacity") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "ERROR: Missing value for -program-capacity.\n");
+                fprintf(stderr, "ERROR: Missing value for --program-capacity.\n");
                 print_usage_and_exit();
             }
             vm_program_capacity = parse_non_negative_int(argv[++i]);
-        } else if (strcmp(argv[i], "-limit") == 0) {
+        } else if (strcmp(argv[i], "--limit") == 0) {
             if (i + 1 >= argc) {
-                fprintf(stderr, "ERROR: Missing value for -limit.\n");
+                fprintf(stderr, "ERROR: Missing value for --limit.\n");
                 print_usage_and_exit();
             }
             limit = atoll(argv[++i]);
+        } else if (strcmp(argv[i], "--debug") == 0) {
+            debug = 1;  // Enable debug mode if --debug is present
         } else if (!input) {
             input = argv[i];  
         } else if (!output) {
@@ -67,15 +70,14 @@ int main(int argc, char **argv) {
         }
     }
 
-
     if (!action) {
-        fprintf(stderr, "ERROR: Missing -action option.\n");
+        fprintf(stderr, "ERROR: Missing --action option.\n");
         print_usage_and_exit();
     }
 
     if (strcmp(action, "anc") == 0) {
         if (!input || !output) {
-            fprintf(stderr, "./virtmach -action anc <input.vasm> <output.vm>\n");
+            fprintf(stderr, "./virtmach --action anc <input.vasm> <output.vm>\n");
             fprintf(stderr, "ERROR: expected input and output files for the 'anc' action.\n");
             exit(EXIT_FAILURE);
         }
@@ -90,7 +92,7 @@ int main(int argc, char **argv) {
 
     } else if (strcmp(action, "run") == 0) {
         if (!input) {
-            fprintf(stderr, "./virtmach -action run <file.vm>\n");
+            fprintf(stderr, "./virtmach --action run <file.vm>\n");
             fprintf(stderr, "ERROR: expected a .vm file for the 'run' action.\n");
             exit(EXIT_FAILURE);
         }
@@ -98,7 +100,7 @@ int main(int argc, char **argv) {
         VirtualMachine vm;
         vm_init(&vm);
         vm.program_size = vm_load_program_from_file(vm.program, input);
-        vm_exec_program(&vm, limit);
+        vm_exec_program(&vm, limit, debug);
 
         return EXIT_SUCCESS;
 
