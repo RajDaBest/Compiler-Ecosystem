@@ -28,16 +28,55 @@ static Trap vm_free(VirtualMachine *vm)
     return TRAP_OK;
 }
 
+static Trap vm_print_f64(VirtualMachine *vm)
+{
+    if (vm->stack_size < 1)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    double value = vm->stack[vm->stack_size - 1];
+    fprintf(stdout, "%lf\n", value);
+
+    return TRAP_OK;
+}
+
+static Trap vm_print_u64(VirtualMachine *vm)
+{
+    if (vm->stack_size < 1)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    __uint64_t value = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+    fprintf(stdout, "%llu\n", value);
+
+    return TRAP_OK;
+}
+
+static Trap vm_print_s64(VirtualMachine *vm)
+{
+    if (vm->stack_size < 1)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    __uint64_t value = return_value_signed(vm->stack[vm->stack_size - 1]);
+    fprintf(stdout, "%lld\n", value);
+
+    return TRAP_OK;
+}
+
 void print_usage_and_exit()
 {
-    fprintf(stderr, "Usage: ./virtmach --action <anc|run> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--debug] <input> [output]\n");
-    fprintf(stderr, "  --action <anc|run>         Action to perform ('anc' to assemble, 'run' to execute)\n");
+    fprintf(stderr, "Usage: ./virtmach --action <asm|run> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--debug] <input> [output]\n");
+    fprintf(stderr, "  --action <asm|run>         Action to perform ('asm' to assemble, 'run' to execute)\n");
     fprintf(stderr, "  --stack-size <size>        Optional stack size (default: 1024)\n");
     fprintf(stderr, "  --program-capacity <size>  Optional program capacity (default: 1024)\n");
     fprintf(stderr, "  --limit <n>                Optional instruction limit, -1 for no limit (default: -1)\n");
     fprintf(stderr, "  --debug                    Enable debug mode (optional)\n");
-    fprintf(stderr, "  <input>                    Input file (for 'anc' or 'run')\n");
-    fprintf(stderr, "  [output]                   Output file (only for 'anc' action)\n");
+    fprintf(stderr, "  <input>                    Input file (for 'asm' or 'run')\n");
+    fprintf(stderr, "  [output]                   Output file (only for 'asm' action)\n");
     exit(EXIT_FAILURE);
 }
 
@@ -119,7 +158,7 @@ int main(int argc, char **argv)
         {
             fprintf(stderr, "ERROR: Too many arguments.\n");
             print_usage_and_exit();
-        }
+        } 
     }
 
     if (!action)
@@ -128,12 +167,12 @@ int main(int argc, char **argv)
         print_usage_and_exit();
     }
 
-    if (strcmp(action, "anc") == 0)
+    if (strcmp(action, "asm") == 0)
     {
         if (!input || !output)
         {
-            fprintf(stderr, "./virtmach --action anc <input.vasm> <output.vm>\n");
-            fprintf(stderr, "ERROR: expected input and output files for the 'anc' action.\n");
+            fprintf(stderr, "./virtmach --action asm <input.vasm> <output.vm>\n");
+            fprintf(stderr, "ERROR: expected input and output files for the 'asm' action.\n");
             exit(EXIT_FAILURE);
         }
 
@@ -160,6 +199,9 @@ int main(int argc, char **argv)
         vm_init(&vm, input);
         vm_native_push(&vm, vm_alloc);
         vm_native_push(&vm, vm_free);
+        vm_native_push(&vm, vm_print_f64);
+        vm_native_push(&vm, vm_print_s64);
+        vm_native_push(&vm, vm_print_u64);
         vm_exec_program(&vm, limit, debug);
         vm_internal_free(&vm);
 
@@ -167,7 +209,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        fprintf(stderr, "ERROR: Unknown action '%s'. Expected 'anc' or 'run'.\n", action);
+        fprintf(stderr, "ERROR: Unknown action '%s'. Expected 'asm' or 'run'.\n", action);
         print_usage_and_exit();
     }
 

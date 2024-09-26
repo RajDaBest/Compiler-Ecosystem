@@ -28,7 +28,7 @@ int main(int argc, char **argv)
             }
             else if (op_type == TYPE_SIGNED_64INT)
             {
-                printf("%ld", return_value_signed(program[i].operand));
+                printf("%lld", return_value_signed(program[i].operand));
             }
             else if (op_type == TYPE_UNSIGNED_64INT)
             {

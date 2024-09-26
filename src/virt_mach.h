@@ -593,7 +593,7 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
             {
 
                 __int64_t element = return_value_signed(vm->stack[i]);
-                fprintf(stream, "%ld\n", element);
+                fprintf(stream, "%lld\n", element);
             }
             else
             {
@@ -1166,9 +1166,9 @@ void vm_init(VirtualMachine *vm, char *source_code)
     vm->halt = 0;
 }
 
-void vm_internal_free (VirtualMachine *vm)
+void vm_internal_free(VirtualMachine *vm)
 {
-    free ((void *)vm->program);
+    free((void *)vm->program);
     free((void *)vm->natives);
     free((void *)vm->stack);
 }
@@ -1185,10 +1185,13 @@ int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug)
         if (debug)
         {
             getchar();
+            fprintf(stdout, "%s\n", get_inst_name(vm->program[vm->instruction_pointer].type));
         }
-        fprintf(stdout, "%s\n", get_inst_name(vm->program[vm->instruction_pointer].type));
         ret = vm_execute_at_inst_pointer(vm);
-        vm_dump_stack(stdout, vm);
+        if (debug)
+        {
+            vm_dump_stack(stdout, vm);
+        }
         if (ret != TRAP_OK)
         {
             fprintf(stderr, "Trap activated: %s\n", trap_as_cstr(ret));
@@ -1201,6 +1204,7 @@ int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug)
             limit--;
         }
     }
+    // vm_dump_stack(stdout, vm);
     return SUCCESS;
 }
 
@@ -1699,10 +1703,10 @@ String_View slurp_file(const char *file_path)
         }
 
         __int64_t int1 = (__int64_t)operand;
-        // printf("%ld %lf\n", int1, operand);
+        // printf("%lld %lf\n", int1, operand);
         set_signed_64int(&operand, int1);
-        // printf("%ld %lf\n", int1, operand);
-        // printf("%ld %ld\n", return_value_signed(operand), int1);
+        // printf("%lld %lf\n", int1, operand);
+        // printf("%lld %lld\n", return_value_signed(operand), int1);
 
         return (Inst){.type = INST_SPUSH, .operand = operand};
     }
@@ -1727,10 +1731,10 @@ String_View slurp_file(const char *file_path)
         }
 
         __uint64_t int1 = (__uint64_t)operand;
-        // printf("%ld %lf\n", int1, operand);
+        // printf("%lld %lf\n", int1, operand);
         set_unsigned_64int(&operand, int1);
-        // printf("%ld %lf\n", int1, operand);
-        // printf("%ld %ld\n", return_value_signed(operand), int1);
+        // printf("%lld %lf\n", int1, operand);
+        // printf("%lld %lld\n", return_value_signed(operand), int1);
 
         return (Inst){.type = INST_UPUSH, .operand = operand};
     }
@@ -2466,7 +2470,7 @@ String_View slurp_file(const char *file_path)
         break;
     case INST_DUP:
         __uint64_t opernd222 = return_value_unsigned(inst.operand);
-        // printf("%ld\n", opernd2);
+        // printf("%lld\n", opernd2);
         if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
