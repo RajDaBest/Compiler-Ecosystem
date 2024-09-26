@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+#define EPSILON 1e-9
 #define VM_STACK_CAPACITY 1024
 #define VM_PROGRAM_CAPACITY 1024
 #define VM_LABEL_CAPACITY 128
@@ -93,18 +94,24 @@ typedef enum
     INST_SDIV, // integer divide the second last element on the stack by the last element and store the result in the second last element, and then remove the last element from the stack
     INST_UDIV,
     INST_FDIV,
-    INST_JMP,    // unconditional jump
-    INST_HALT,   // halt the machine
-    INST_JMP_IF, // jump to an address if the last element on the stack is non-zero; do not jump otherwise
-    INST_EQ,     // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
-    INST_LSR,    // logical shift right; for unsigned
-    INST_ASR,    // arithmetic shift right;  for signed
-    INST_SL,     // shift left; for both signed and unsigned
+    INST_JMP,     // unconditional jump
+    INST_HALT,    // halt the machine
+    INST_UJMP_IF, // jump to an address if the last element on the stack is non-zero; do not jump otherwise
+    INST_FJMP_IF,
+    INST_EQ,  // checks if the second last stack element is equal to the last stack element; sets the second last element to one if true, and 0 otherwise; removes the last element from the stack
+    INST_LSR, // logical shift right; for unsigned
+    INST_ASR, // arithmetic shift right;  for signed
+    INST_SL,  // shift left; for both signed and unsigned
     INST_AND,
     INST_OR,
     INST_NOT,
     INST_EMPTY,
+    INST_POP_AT,
     INST_POP,
+    INST_RSWAP,
+    INST_ASWAP,
+    INST_RET,
+    INST_CALL,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
 
@@ -122,7 +129,18 @@ typedef struct // structure defining the actual virtual machine
     int halt;
     Inst *program;       // the actual instruction array
     size_t program_size; // number of instructions in the program
+    bool has_start;
+    size_t start_label_index;
 } VirtualMachine;
+
+typedef struct
+{
+    bool has_start;
+    size_t code_section_offset;
+    __int64_t start_location;
+    size_t code_section_size;
+    size_t data_section_offset; // not using currently
+} vm_header_;
 
 void push_to_not_resolved_yet(String_View label, size_t inst_location);
 void push_to_label_array(String_View label, double pointing_location);
@@ -139,16 +157,16 @@ __uint8_t get_operand_type(Inst_Type inst);
 int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction inst on vm
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size);
 void label_init();
-void vm_init(VirtualMachine *vm);
+void vm_init(VirtualMachine *vm, char *source_code);
 int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
-void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path);
-size_t vm_load_program_from_file(Inst *program, const char *file_path);
+void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_path);
+vm_header_ vm_load_program_from_file(Inst *program, const char *file_path);
 Inst vm_translate_line(String_View line, size_t current_program_counter);
 static void process_label(String_View label, size_t program_size);
 static void resolve_labels(Inst *program);
 static void check_unresolved_labels();
-size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity);
+vm_header_ vm_translate_source(String_View source, Inst *program, size_t program_capacity);
 String_View slurp_file(const char *file_path);
 
 #ifdef _VM_IMPLEMENTATION
@@ -197,8 +215,10 @@ const char *get_inst_name(Inst_Type inst)
         return "jmp";
     case INST_HALT:
         return "halt";
-    case INST_JMP_IF:
-        return "jmp_if";
+    case INST_UJMP_IF:
+        return "ujmp_if";
+    case INST_FJMP_IF:
+        return "fjmp_if";
     case INST_EQ:
         return "eq";
     case INST_LSR:
@@ -215,8 +235,18 @@ const char *get_inst_name(Inst_Type inst)
         return "not";
     case INST_EMPTY:
         return "empty";
+    case INST_POP_AT:
+        return "pop_at";
     case INST_POP:
         return "pop";
+    case INST_RET:
+        return "ret";
+    case INST_CALL:
+        return "call";
+    case INST_ASWAP:
+        return "aswap";
+    case INST_RSWAP:
+        return "rswap";
     default:
         return NULL; // Invalid instruction
     }
@@ -239,34 +269,36 @@ bool has_operand_function(Inst_Type inst)
     case INST_RDUP:
         return 1;
     case INST_SPLUS:
-        return 1;
+        return 0;
     case INST_UPLUS:
-        return 1;
+        return 0;
     case INST_FPLUS:
-        return 1;
+        return 0;
     case INST_SMINUS:
-        return 1;
+        return 0;
     case INST_UMINUS:
-        return 1;
+        return 0;
     case INST_FMINUS:
-        return 1;
+        return 0;
     case INST_SMULT:
-        return 1;
+        return 0;
     case INST_UMULT:
-        return 1;
+        return 0;
     case INST_FMULT:
-        return 1;
+        return 0;
     case INST_SDIV:
-        return 1;
+        return 0;
     case INST_UDIV:
-        return 1;
+        return 0;
     case INST_FDIV:
-        return 1;
+        return 0;
     case INST_JMP:
         return 1;
     case INST_HALT:
         return 0;
-    case INST_JMP_IF:
+    case INST_FJMP_IF:
+        return 1;
+    case INST_UJMP_IF:
         return 1;
     case INST_EQ:
         return 0;
@@ -284,7 +316,17 @@ bool has_operand_function(Inst_Type inst)
         return 0;
     case INST_EMPTY:
         return 0;
+    case INST_POP_AT:
+        return 1;
     case INST_POP:
+        return 0;
+    case INST_RET:
+        return 0;
+    case INST_CALL:
+        return 1;
+    case INST_RSWAP:
+        return 1;
+    case INST_ASWAP:
         return 1;
     default:
         return -1; // Invalid instruction
@@ -297,26 +339,14 @@ __uint8_t get_operand_type(Inst_Type inst)
     {
     // Signed arithmetic instructions
     case INST_SPUSH:
-    case INST_SPLUS:
-    case INST_SMINUS:
-    case INST_SMULT:
-    case INST_SDIV:
         return TYPE_SIGNED_64INT;
 
     // Unsigned arithmetic instructions
     case INST_UPUSH:
-    case INST_UPLUS:
-    case INST_UMINUS:
-    case INST_UMULT:
-    case INST_UDIV:
         return TYPE_UNSIGNED_64INT;
 
     // Floating-point arithmetic instructions
     case INST_FPUSH:
-    case INST_FPLUS:
-    case INST_FMINUS:
-    case INST_FMULT:
-    case INST_FDIV:
         return TYPE_DOUBLE;
 
     // Shift operations, which often use unsigned integers
@@ -327,17 +357,24 @@ __uint8_t get_operand_type(Inst_Type inst)
 
     // Control flow instructions
     case INST_JMP:
-    case INST_JMP_IF:
+    case INST_UJMP_IF:
+    case INST_FJMP_IF:
         return TYPE_UNSIGNED_64INT;
 
     // Stack manipulation
-    case INST_POP:
+    case INST_POP_AT:
         return TYPE_UNSIGNED_64INT;
 
     case INST_ADUP:
     case INST_RDUP:
         return TYPE_UNSIGNED_64INT;
 
+    case INST_ASWAP:
+    case INST_RSWAP:
+        return TYPE_UNSIGNED_64INT;
+
+    case INST_CALL:
+        return TYPE_UNSIGNED_64INT;
     default:
         return 0; // No specific operand type or invalid instruction
     }
@@ -543,6 +580,36 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
     }
 }
 
+static int handle_swap(VirtualMachine *vm, Inst inst)
+{
+    __uint64_t operand = return_value_unsigned(inst.operand);
+    if (inst.type == INST_ASWAP)
+    {
+        if (operand >= vm->stack_size)
+        {
+            return TRAP_STACK_OVERFLOW;
+        }
+
+        double temp = vm->stack[vm->stack_size - 1];
+        vm->stack[vm->stack_size - 1] = vm->stack[operand];
+        vm->stack[operand] = temp;
+    }
+    else
+    {
+        if (vm->stack_size - operand < 0)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        double temp = vm->stack[vm->stack_size - 1];
+        vm->stack[vm->stack_size - 1] = vm->stack[vm->stack_size - 1 - operand];
+        vm->stack[vm->stack_size - 1 - operand] = temp;
+    }
+
+    vm->instruction_pointer++;
+    return TRAP_OK;
+}
+
 static int handle_shift(VirtualMachine *vm, Inst inst, bool is_arithmetic)
 {
     if (vm->stack_size < 1)
@@ -583,19 +650,9 @@ static int handle_push(VirtualMachine *vm, Inst inst)
 
 static int handle_arithmetic(VirtualMachine *vm, Inst inst)
 {
-    if (vm->stack_size < 1)
+    if (vm->stack_size < 2)
     {
         return TRAP_STACK_UNDERFLOW;
-    }
-
-    // The operand in `inst.operand` is the index of the first operand
-    size_t first_operand_index = return_value_unsigned(inst.operand);
-    printf("%zu\n", first_operand_index);
-
-    // Check if the first operand index is within valid bounds
-    if (first_operand_index >= vm->stack_size - 1)
-    {
-        return TRAP_ILLEGAL_INSTRUCTION;
     }
 
     // Second operand is the top of the stack
@@ -611,21 +668,21 @@ static int handle_arithmetic(VirtualMachine *vm, Inst inst)
     case INST_FMINUS:
     case INST_FMULT:
     case INST_FDIV:
-        a_float = vm->stack[first_operand_index]; // First operand from the given index
-        b_float = vm->stack[vm->stack_size - 1];  // Second operand is the top of the stack
+        a_float = vm->stack[vm->stack_size - 2]; // First operand from the given index
+        b_float = vm->stack[vm->stack_size - 1]; // Second operand is the top of the stack
         break;
     case INST_SPLUS:
     case INST_SMINUS:
     case INST_SMULT:
     case INST_SDIV:
-        a_signed = return_value_signed(vm->stack[first_operand_index]);
+        a_signed = return_value_signed(vm->stack[vm->stack_size - 2]);
         b_signed = return_value_signed(vm->stack[vm->stack_size - 1]);
         break;
     case INST_UPLUS:
     case INST_UMINUS:
     case INST_UMULT:
     case INST_UDIV:
-        a_unsigned = return_value_unsigned(vm->stack[first_operand_index]);
+        a_unsigned = return_value_unsigned(vm->stack[vm->stack_size - 2]);
         b_unsigned = return_value_unsigned(vm->stack[vm->stack_size - 1]);
         break;
     default:
@@ -684,15 +741,15 @@ static int handle_arithmetic(VirtualMachine *vm, Inst inst)
     // Store the result in the location of the first operand
     if (inst.type == INST_SPLUS || inst.type == INST_SMINUS || inst.type == INST_SMULT || inst.type == INST_SDIV)
     {
-        set_signed_64int(&vm->stack[first_operand_index], (__int64_t)result);
+        set_signed_64int(&vm->stack[vm->stack_size - 2], (__int64_t)result);
     }
     else if (inst.type == INST_UPLUS || inst.type == INST_UMINUS || inst.type == INST_UMULT || inst.type == INST_UDIV)
     {
-        set_unsigned_64int(&vm->stack[first_operand_index], (__uint64_t)result);
+        set_unsigned_64int(&vm->stack[vm->stack_size - 2], (__uint64_t)result);
     }
     else
     {
-        vm->stack[first_operand_index] = result;
+        vm->stack[vm->stack_size - 2] = result;
     }
 
     // Reduce the stack size by one, popping the top operand
@@ -704,6 +761,28 @@ static int handle_arithmetic(VirtualMachine *vm, Inst inst)
     return TRAP_OK;
 }
 
+static int handle_functions(VirtualMachine *vm, Inst inst)
+{
+    if (inst.type == INST_CALL)
+    {
+        __uint64_t addr = return_value_unsigned(inst.operand);
+        if (vm->stack[vm->stack_size] >= vm_stack_capacity)
+        {
+            return TRAP_STACK_OVERFLOW;
+        }
+
+        set_unsigned_64int(&vm->stack[vm->stack_size++], (vm->instruction_pointer + 1));
+        vm->instruction_pointer = addr;
+    }
+    else if (inst.type == INST_RET)
+    {
+        vm->instruction_pointer = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        vm->stack_size--;
+    }
+
+    return TRAP_OK;
+}
+
 static int handle_jump(VirtualMachine *vm, Inst inst)
 {
     __uint64_t jump_addr = return_value_unsigned(inst.operand);
@@ -711,11 +790,25 @@ static int handle_jump(VirtualMachine *vm, Inst inst)
     if (jump_addr >= vm->program_size)
         return TRAP_ILLEGAL_JMP;
 
-    if (inst.type == INST_JMP_IF)
+    if (inst.type == INST_UJMP_IF)
     {
         if (vm->stack_size < 1)
             return TRAP_STACK_UNDERFLOW;
         if (return_value_unsigned(vm->stack[vm->stack_size - 1]))
+        {
+            vm->stack_size--;
+            vm->instruction_pointer = jump_addr;
+        }
+        else
+        {
+            vm->instruction_pointer++;
+        }
+    }
+    else if (inst.type == INST_FJMP_IF)
+    {
+        if (vm->stack_size < 1)
+            return TRAP_STACK_UNDERFLOW;
+        if ((vm->stack[vm->stack_size - 1]) < EPSILON)
         {
             vm->stack_size--;
             vm->instruction_pointer = jump_addr;
@@ -852,19 +945,22 @@ static int handle_empty(VirtualMachine *vm)
 
 static int handle_pop(VirtualMachine *vm, Inst inst)
 {
-    size_t index_to_pop = return_value_unsigned(inst.operand);
-    if (index_to_pop < 0)
+    if (inst.type == INST_POP_AT)
     {
-        return TRAP_STACK_UNDERFLOW;
-    }
-    else if (index_to_pop >= vm->stack_size)
-    {
-        return TRAP_STACK_OVERFLOW;
-    }
+        size_t index_to_pop = return_value_unsigned(inst.operand);
+        if (index_to_pop < 0)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+        else if (index_to_pop >= vm->stack_size)
+        {
+            return TRAP_STACK_OVERFLOW;
+        }
 
-    for (size_t i = index_to_pop; i < vm->stack_size - 1; i++)
-    {
-        vm->stack[i] = vm->stack[i + 1];
+        for (size_t i = index_to_pop; i < vm->stack_size - 1; i++)
+        {
+            vm->stack[i] = vm->stack[i + 1];
+        }
     }
 
     vm->stack_size--;
@@ -912,7 +1008,8 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
         return TRAP_OK;
 
     case INST_JMP:
-    case INST_JMP_IF:
+    case INST_FJMP_IF:
+    case INST_UJMP_IF:
         return handle_jump(vm, inst);
 
     case INST_EQ:
@@ -930,7 +1027,16 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
     case INST_EMPTY:
         return handle_empty(vm);
     case INST_POP:
+    case INST_POP_AT:
         return handle_pop(vm, inst);
+
+    case INST_ASWAP:
+    case INST_RSWAP:
+        return handle_swap(vm, inst);
+
+    case INST_CALL:
+    case INST_RET:
+        return handle_functions(vm, inst);
 
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
@@ -967,7 +1073,7 @@ void label_init()
     }
 }
 
-void vm_init(VirtualMachine *vm)
+void vm_init(VirtualMachine *vm, char *source_code)
 {
     vm->stack = malloc(sizeof(double) * vm_stack_capacity);
     if (!vm->stack)
@@ -981,8 +1087,20 @@ void vm_init(VirtualMachine *vm)
         fprintf(stderr, "ERROR: code section allocation failed: %s\n", strerror(errno));
     }
 
+    vm_header_ header = vm_load_program_from_file(vm->program, source_code);
+
+    vm->program_size = header.code_section_size;
+    vm->has_start = header.has_start;
+    if (vm->has_start)
+    {
+        vm->instruction_pointer = header.start_location;
+    }
+    else
+    {
+        fprintf(stderr, "ERROR: 'start' not found in %s\n", source_code);
+        exit(EXIT_FAILURE);
+    }
     vm->stack_size = 0;
-    vm->instruction_pointer = 0;
     vm->halt = 0;
 }
 
@@ -994,8 +1112,8 @@ int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug)
         return TRAP_NO_HALT_FOUND;
     }
     while (!vm->halt && limit != 0)
-    {   
-        if(debug)
+    {
+        if (debug)
         {
             getchar();
         }
@@ -1028,7 +1146,7 @@ void vm_push_inst(VirtualMachine *vm, Inst *inst)
     vm->program[vm->program_size++ - 1] = *inst;
 }
 
-void vm_save_program_to_file(Inst *program, size_t program_size, const char *file_path)
+void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_path)
 {
     FILE *f = fopen(file_path, "wb");
     if (!f)
@@ -1037,7 +1155,15 @@ void vm_save_program_to_file(Inst *program, size_t program_size, const char *fil
         exit(EXIT_FAILURE);
     }
 
-    fwrite(program, sizeof(Inst), program_size, f);
+    fwrite(&header, sizeof(header), 1, f);
+    if (ferror(f)) // did some error occur due to the last stdio function call on f?
+    {
+        fprintf(stderr, "ERROR: Could not write to file '%s': %s\n", file_path, strerror(errno));
+        fclose(f);
+        exit(EXIT_FAILURE);
+    }
+
+    fwrite(program, sizeof(Inst), header.code_section_size, f);
     if (ferror(f)) // did some error occur due to the last stdio function call on f?
     {
         fprintf(stderr, "ERROR: Could not write to file '%s': %s\n", file_path, strerror(errno));
@@ -1048,9 +1174,8 @@ void vm_save_program_to_file(Inst *program, size_t program_size, const char *fil
     fclose(f);
 }
 
-size_t vm_load_program_from_file(Inst *program, const char *file_path)
+vm_header_ vm_load_program_from_file(Inst *program, const char *file_path)
 {
-    long ret = 0;
     FILE *f = fopen(file_path, "rb");
     if (!f)
     {
@@ -1058,43 +1183,36 @@ size_t vm_load_program_from_file(Inst *program, const char *file_path)
         exit(EXIT_FAILURE);
     }
 
-    if (fseek(f, 0, SEEK_END))
-    {
-        fclose(f);
-        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    ret = ftell(f);
-    if (ret == -1)
-    {
-        fclose(f);
-        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    // ret now contains the number of bytes in the file
-
-    assert(ret % sizeof(Inst) == 0);
-    assert((size_t)ret <= vm_program_capacity * sizeof(Inst));
-
-    if (fseek(f, 0, SEEK_SET))
-    {
-        fclose(f);
-        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    int ret_val = fread(program, sizeof(Inst), ret / sizeof(Inst), f);
+    vm_header_ header = {0};
+    int ret_val = fread(&header, sizeof(vm_header_), 1, f);
     if (ferror(f))
     {
         fclose(f);
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    assert(header.code_section_size <= vm_program_capacity * sizeof(Inst));
+
+    if (fseek(f, header.code_section_offset, SEEK_SET))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    ret_val = fread(program, sizeof(Inst), header.code_section_size, f);
+    if (ferror(f))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    assert(header.code_section_size <= vm_program_capacity * sizeof(Inst));
     fclose(f);
 
-    return (size_t)(ret / sizeof(Inst));
+    return header;
 }
 
 Inst vm_translate_line(String_View line, size_t current_program_counter)
@@ -1126,7 +1244,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             double operand = sv_to_value(&line);
             if (str_errno == FAILURE)
             {
-                if (i == INST_JMP || i == INST_JMP_IF)
+                if (i == INST_JMP || i == INST_UJMP_IF || i == INST_FJMP_IF || i == INST_CALL)
                 {
                     push_to_not_resolved_yet(line, current_program_counter);
                     return (Inst){.type = i, .operand = 0};
@@ -1221,7 +1339,21 @@ static void check_unresolved_labels()
     }
 }
 
-size_t vm_translate_source(String_View source, Inst *program, size_t program_capacity)
+__int64_t check_start()
+{
+    String_View start_ = cstr_as_sv("start");
+    for (size_t i = 0; i < label_array_counter; i++)
+    {
+        if (sv_eq(label_array[i].label, start_))
+        {
+            return return_value_unsigned(label_array[i].label_pointing_location);
+        }
+    }
+
+    return -1;
+}
+
+vm_header_ vm_translate_source(String_View source, Inst *program, size_t program_capacity)
 {
     size_t program_size = 0;
 
@@ -1280,7 +1412,14 @@ size_t vm_translate_source(String_View source, Inst *program, size_t program_cap
         fprintf(stderr, "Compilation Failed\n");
     }
 
-    return program_size;
+    bool has_start = true;
+
+    __int64_t ret_val = check_start();
+    if (ret_val == -1)
+    {
+        has_start = false;
+    }
+    return (vm_header_){.code_section_size = program_size, .has_start = has_start, .data_section_offset = 0, .code_section_offset = sizeof(vm_header_), .start_location = ret_val};
 }
 
 String_View slurp_file(const char *file_path)

@@ -1,6 +1,19 @@
+# a + (b - a) * t
 
-upush 3
-fpush 6.7
-upush 4
-uplus 0
-halt
+
+lerp:
+
+    upush 1
+    pop
+    ret
+
+start:
+
+    upush 10 # a
+    upush 8 # b
+    upush 7 # t 
+    call lerp
+
+    upush 11
+    upush 12
+    halt
