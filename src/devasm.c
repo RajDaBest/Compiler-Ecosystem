@@ -13,7 +13,8 @@ int main(int argc, char **argv)
     const char *input = argv[1];
 
     Inst program[vm_program_capacity];
-    size_t program_size = vm_load_program_from_file(program, input);
+    vm_header_ header = vm_load_program_from_file(program, input);
+    size_t program_size = header.code_section_size;
 
     for (size_t i = 0; i < program_size; i++)
     {
@@ -31,7 +32,7 @@ int main(int argc, char **argv)
             }
             else if (op_type == TYPE_UNSIGNED_64INT)
             {
-                printf("%lu", return_value_unsigned(program[i].operand));
+                printf("%llu", return_value_unsigned(program[i].operand));
             }
         }
         printf("\n");

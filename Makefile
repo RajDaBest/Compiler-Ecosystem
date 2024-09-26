@@ -2,10 +2,10 @@ CFLAGS=-Wall -Wextra -std=c11 -pedantic -O3 -Wall -march=native -ffast-math -fun
 LIBS=
 
 virtmach: src/main.c
-	gcc $(CFLAGS) -o virtmach src/main.c $(LIBS)
+	gcc $(CFLAGS) -o ./bin/virtmach src/main.c $(LIBS)
 
 devasm: src/devasm.c 
-	gcc $(CFLAGS) -o devasm src/devasm.c $(LIBS)
+	gcc $(CFLAGS) -o ./bin/devasm src/devasm.c $(LIBS)
 
 clean:
-	rm -f virtmach devasm
+	rm -f ./bin/virtmach ./bin/devasm

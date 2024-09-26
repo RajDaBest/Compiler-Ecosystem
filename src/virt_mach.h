@@ -15,6 +15,7 @@
 #define VM_PROGRAM_CAPACITY 1024
 #define VM_LABEL_CAPACITY 128
 #define VM_EQU_CAPACITY 128
+#define VM_NATIVE_CAPACITY 128
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
 #define MAKE_INST_DUP(rel_addr) {.type = INST_DUP, .operand = (rel_addr)}
@@ -38,6 +39,7 @@ size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 size_t label_capacity = VM_LABEL_CAPACITY;
 size_t equ_label_capacity = VM_EQU_CAPACITY;
+size_t natives_capacity = VM_NATIVE_CAPACITY;
 size_t line_no = 0;
 bool compilation_successful = true;
 
@@ -112,6 +114,7 @@ typedef enum
     INST_ASWAP,
     INST_RET,
     INST_CALL,
+    INST_NATIVE,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
 
@@ -121,16 +124,26 @@ typedef struct
     double operand; // operand of the instruction
 } Inst;             // structure for the actual instruction
 
-typedef struct // structure defining the actual virtual machine
+struct VirtualMachine;
+
+typedef Trap (*native)(struct VirtualMachine *); // you can define functions that match this signature and assign their addresses to variables of type native
+
+typedef struct VirtualMachine // structure defining the actual virtual machine
 {
-    double *stack;            // the stack of the virtual machine; the stack top is the end of the array
-    size_t stack_size;        // current stack size
+    double *stack;     // the stack of the virtual machine; the stack top is the end of the array
+    size_t stack_size; // current stack size
+
+    Inst *program;            // the actual instruction array
+    size_t program_size;      // number of instructions in the program
     word instruction_pointer; // the address of the next instruction to be executed
-    int halt;
-    Inst *program;       // the actual instruction array
-    size_t program_size; // number of instructions in the program
+
+    native *natives;
+    size_t natives_size;
+
     bool has_start;
     size_t start_label_index;
+
+    int halt;
 } VirtualMachine;
 
 typedef struct
@@ -147,6 +160,7 @@ void push_to_label_array(String_View label, double pointing_location);
 const char *trap_as_cstr(Trap trap);
 const char *inst_type_as_asm_str(Inst_Type type);
 const char *inst_type_as_cstr(Inst_Type type);
+void vm_native_push(VirtualMachine *vm, native native_func);
 void vm_dump_stack(FILE *stream, const VirtualMachine *vm);
 static int handle_shift(VirtualMachine *vm, Inst inst, bool is_arithmetic);
 static int handle_push(VirtualMachine *vm, Inst inst);
@@ -157,7 +171,9 @@ __uint8_t get_operand_type(Inst_Type inst);
 int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction inst on vm
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size);
 void label_init();
+void label_free();
 void vm_init(VirtualMachine *vm, char *source_code);
+void vm_internal_free(VirtualMachine *vm);
 int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
 void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_path);
@@ -247,6 +263,8 @@ const char *get_inst_name(Inst_Type inst)
         return "aswap";
     case INST_RSWAP:
         return "rswap";
+    case INST_NATIVE:
+        return "native";
     default:
         return NULL; // Invalid instruction
     }
@@ -328,6 +346,8 @@ bool has_operand_function(Inst_Type inst)
         return 1;
     case INST_ASWAP:
         return 1;
+    case INST_NATIVE:
+        return 1;
     default:
         return -1; // Invalid instruction
     }
@@ -374,6 +394,9 @@ __uint8_t get_operand_type(Inst_Type inst)
         return TYPE_UNSIGNED_64INT;
 
     case INST_CALL:
+        return TYPE_UNSIGNED_64INT;
+
+    case INST_NATIVE:
         return TYPE_UNSIGNED_64INT;
     default:
         return 0; // No specific operand type or invalid instruction
@@ -552,6 +575,12 @@ void push_to_label_array(String_View label, double pointing_location)
     label_array_counter++;
 }
 
+void vm_native_push(VirtualMachine *vm, native native_func)
+{
+    assert(vm->natives_size < natives_capacity);
+    vm->natives[vm->natives_size++] = native_func;
+}
+
 void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
 {
     fprintf(stream, "Stack:\n");
@@ -608,6 +637,20 @@ static int handle_swap(VirtualMachine *vm, Inst inst)
 
     vm->instruction_pointer++;
     return TRAP_OK;
+}
+
+static int handle_native(VirtualMachine *vm, Inst inst)
+{
+    __uint64_t index = return_value_unsigned(inst.operand);
+    if (index > vm->natives_size)
+    {
+        return TRAP_ILLEGAL_OPERAND;
+    }
+
+    Trap ret_val = (vm->natives[index])(vm);
+
+    vm->instruction_pointer++;
+    return ret_val;
 }
 
 static int handle_shift(VirtualMachine *vm, Inst inst, bool is_arithmetic)
@@ -1038,6 +1081,9 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
     case INST_RET:
         return handle_functions(vm, inst);
 
+    case INST_NATIVE:
+        return handle_native(vm, inst);
+
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
     }
@@ -1073,19 +1119,35 @@ void label_init()
     }
 }
 
+void label_free()
+{
+    free((void *)not_resolved_yet);
+    free((void *)label_array);
+}
+
 void vm_init(VirtualMachine *vm, char *source_code)
 {
     vm->stack = malloc(sizeof(double) * vm_stack_capacity);
     if (!vm->stack)
     {
         fprintf(stderr, "ERROR: stack allocation failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }
 
     vm->program = malloc(sizeof(Inst) * vm_program_capacity);
     if (!vm->program)
     {
         fprintf(stderr, "ERROR: code section allocation failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
     }
+
+    vm->natives = malloc(sizeof(native) * natives_capacity);
+    if (!vm->natives)
+    {
+        fprintf(stderr, "ERROR: native function pointer array allocation failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    vm->natives_size = 0;
 
     vm_header_ header = vm_load_program_from_file(vm->program, source_code);
 
@@ -1102,6 +1164,13 @@ void vm_init(VirtualMachine *vm, char *source_code)
     }
     vm->stack_size = 0;
     vm->halt = 0;
+}
+
+void vm_internal_free (VirtualMachine *vm)
+{
+    free ((void *)vm->program);
+    free((void *)vm->natives);
+    free((void *)vm->stack);
 }
 
 int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug)

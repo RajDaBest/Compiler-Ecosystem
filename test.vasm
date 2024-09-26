@@ -1,19 +1,6 @@
-# a + (b - a) * t
-
-
-lerp:
-
-    upush 1
-    pop
-    ret
-
 start:
 
-    upush 10 # a
-    upush 8 # b
-    upush 7 # t 
-    call lerp
-
-    upush 11
-    upush 12
+    upush 16
+    native 0 # call vm_alloc
+    native 1 # call vm_free
     halt
