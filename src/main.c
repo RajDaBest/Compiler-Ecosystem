@@ -3,7 +3,7 @@
 #include <string.h>
 
 #ifdef _WIN32
-#define SYSTEM_COMMAND(command) system("cmd /c " command)
+#define SYSTEM_COMMAND(command) system(command)
 #else
 #define SYSTEM_COMMAND(command) system(command)
 #endif
@@ -18,7 +18,7 @@ static Trap vm_alloc(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    __uint64_t actual_value = (__uint64_t)malloc(return_value_unsigned(vm->stack[vm->stack_size - 1])); // actual value will be set to 0 upon malloc failure
+    uint64_t actual_value = (uint64_t)malloc(return_value_unsigned(vm->stack[vm->stack_size - 1]));
     set_unsigned_64int(&vm->stack[vm->stack_size - 1], actual_value);
 
     return TRAP_OK;
@@ -31,7 +31,7 @@ static Trap vm_free(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    __uint64_t ptr = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+    uint64_t ptr = return_value_unsigned(vm->stack[vm->stack_size - 1]);
     vm->stack_size--;
     free((void *)ptr);
 
@@ -58,7 +58,7 @@ static Trap vm_print_u64(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    __uint64_t value = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+    uint64_t value = return_value_unsigned(vm->stack[vm->stack_size - 1]);
     fprintf(stdout, "%llu\n", value);
 
     return TRAP_OK;
@@ -71,7 +71,7 @@ static Trap vm_print_s64(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    __uint64_t value = return_value_signed(vm->stack[vm->stack_size - 1]);
+    uint64_t value = return_value_signed(vm->stack[vm->stack_size - 1]);
     fprintf(stdout, "%lld\n", value);
 
     return TRAP_OK;
@@ -80,20 +80,12 @@ static Trap vm_print_s64(VirtualMachine *vm)
 void print_usage_and_exit()
 {
     fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--save-vpp [filename]] [--debug] <input> [output]\n");
-    fprintf(stderr, "  --action <asm|run|pp>      Action to perform ('asm' to assemble, 'run' to execute, 'pp' to preprocess)\n");
-    fprintf(stderr, "  --stack-size <size>        Optional stack size (default: 1024)\n");
-    fprintf(stderr, "  --program-capacity <size>  Optional program capacity (default: 1024)\n");
-    fprintf(stderr, "  --limit <n>                Optional instruction limit, -1 for no limit (default: -1)\n");
-    fprintf(stderr, "  --save-vpp [filename]      Save preprocessed file, optional filename (default: input.vpp)\n");
-    fprintf(stderr, "  --debug                    Enable debug mode (optional)\n");
-    fprintf(stderr, "  <input>                    Input file (for 'asm', 'run', or 'pp')\n");
-    fprintf(stderr, "  [output]                   Output file (only for 'asm' action)\n");
     exit(EXIT_FAILURE);
 }
 
-__int64_t parse_non_negative_int(const char *str)
+int64_t parse_non_negative_int(const char *str)
 {
-    __int64_t value = atoll(str);
+    int64_t value = atoll(str);
     if (value < 0)
     {
         fprintf(stderr, "ERROR: Value must be non-negative.\n");
@@ -104,7 +96,7 @@ __int64_t parse_non_negative_int(const char *str)
 
 int main(int argc, char **argv)
 {
-    __int64_t limit = -1; // Default instruction limit: unlimited (-1)
+    int64_t limit = -1; // Default instruction limit: unlimited (-1)
     int debug = 0;        // Default debug mode: disabled
     int save_vpp = 0;     // Flag to check if --save-vpp is provided
     const char *vpp_filename = NULL;
@@ -216,8 +208,12 @@ int main(int argc, char **argv)
         }
 
         // Preprocess the input file
-        char pre_process[200];
-        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);
+        char pre_process[300];
+#ifdef _WIN32
+        sprintf(pre_process, "cl /EP %s > %s", input, vpp_filename); // MSVC preprocessor
+#else
+        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);   // GCC preprocessor for non-Windows
+#endif
         int result = SYSTEM_COMMAND(pre_process);
         if (result != 0)
         {
@@ -237,7 +233,6 @@ int main(int argc, char **argv)
 
         if (!save_vpp)
         {
-            // Optionally remove the vpp file if not needed
             char rm_file[200];
 #ifdef _WIN32
             sprintf(rm_file, "del %s", vpp_filename); // Use 'del' for Windows
@@ -278,8 +273,12 @@ int main(int argc, char **argv)
         }
 
         // Preprocess the input file
-        char pre_process[200];
-        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);
+        char pre_process[300];
+#ifdef _WIN32
+        sprintf(pre_process, "cl /EP %s > %s", input, vpp_filename); // MSVC preprocessor
+#else
+        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);   // GCC preprocessor for non-Windows
+#endif
         int result = SYSTEM_COMMAND(pre_process);
         if (result != 0)
         {

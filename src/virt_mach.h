@@ -152,7 +152,7 @@ typedef struct
 {
     bool has_start;
     size_t code_section_offset;
-    __int64_t start_location;
+    int64_t start_location;
     size_t code_section_size;
     size_t data_section_offset; // not using currently
 } vm_header_;
@@ -169,14 +169,14 @@ static int handle_push(VirtualMachine *vm, Inst inst);
 static int handle_arithmetic(VirtualMachine *vm, Inst inst);
 const char *get_inst_name(Inst_Type inst);
 bool has_operand_function(Inst_Type inst);
-__uint8_t get_operand_type(Inst_Type inst);
+uint8_t get_operand_type(Inst_Type inst);
 int vm_execute_at_inst_pointer(VirtualMachine *vm); // executes the instruction inst on vm
 int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t program_size);
 void label_init();
 void label_free();
 void vm_init(VirtualMachine *vm, char *source_code);
 void vm_internal_free(VirtualMachine *vm);
-int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug);
+int vm_exec_program(VirtualMachine *vm, int64_t limit, bool debug);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
 void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_path);
 vm_header_ vm_load_program_from_file(Inst *program, const char *file_path);
@@ -355,7 +355,7 @@ bool has_operand_function(Inst_Type inst)
     }
 }
 
-__uint8_t get_operand_type(Inst_Type inst)
+uint8_t get_operand_type(Inst_Type inst)
 {
     switch (inst)
     {
@@ -594,7 +594,7 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
             if (is_nan(vm->stack[i]))
             {
 
-                __int64_t element = return_value_signed(vm->stack[i]);
+                int64_t element = return_value_signed(vm->stack[i]);
                 fprintf(stream, "%lld\n", element);
             }
             else
@@ -613,7 +613,7 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
 
 static int handle_swap(VirtualMachine *vm, Inst inst)
 {
-    __uint64_t operand = return_value_unsigned(inst.operand);
+    uint64_t operand = return_value_unsigned(inst.operand);
     if (inst.type == INST_ASWAP)
     {
         if (operand >= vm->stack_size)
@@ -643,7 +643,7 @@ static int handle_swap(VirtualMachine *vm, Inst inst)
 
 static int handle_native(VirtualMachine *vm, Inst inst)
 {
-    __uint64_t index = return_value_unsigned(inst.operand);
+    uint64_t index = return_value_unsigned(inst.operand);
     if (index > vm->natives_size)
     {
         return TRAP_ILLEGAL_OPERAND;
@@ -660,12 +660,12 @@ static int handle_shift(VirtualMachine *vm, Inst inst, bool is_arithmetic)
     if (vm->stack_size < 1)
         return TRAP_STACK_UNDERFLOW;
 
-    __uint64_t shift = return_value_unsigned(inst.operand);
-    __uint64_t value = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+    uint64_t shift = return_value_unsigned(inst.operand);
+    uint64_t value = return_value_unsigned(vm->stack[vm->stack_size - 1]);
 
     if (is_arithmetic && (inst.type == INST_ASR))
     {
-        __int64_t signed_value = (__int64_t)value;
+        int64_t signed_value = (int64_t)value;
         signed_value >>= shift;
         set_signed_64int(&vm->stack[vm->stack_size - 1], signed_value);
     }
@@ -702,8 +702,8 @@ static int handle_arithmetic(VirtualMachine *vm, Inst inst)
 
     // Second operand is the top of the stack
     double result = 0.0;
-    __int64_t a_signed = 0, b_signed = 0;
-    __uint64_t a_unsigned = 0, b_unsigned = 0;
+    int64_t a_signed = 0, b_signed = 0;
+    uint64_t a_unsigned = 0, b_unsigned = 0;
     double a_float = 0.0, b_float = 0.0;
 
     // Retrieve the operands based on the instruction type
@@ -786,11 +786,11 @@ static int handle_arithmetic(VirtualMachine *vm, Inst inst)
     // Store the result in the location of the first operand
     if (inst.type == INST_SPLUS || inst.type == INST_SMINUS || inst.type == INST_SMULT || inst.type == INST_SDIV)
     {
-        set_signed_64int(&vm->stack[vm->stack_size - 2], (__int64_t)result);
+        set_signed_64int(&vm->stack[vm->stack_size - 2], (int64_t)result);
     }
     else if (inst.type == INST_UPLUS || inst.type == INST_UMINUS || inst.type == INST_UMULT || inst.type == INST_UDIV)
     {
-        set_unsigned_64int(&vm->stack[vm->stack_size - 2], (__uint64_t)result);
+        set_unsigned_64int(&vm->stack[vm->stack_size - 2], (uint64_t)result);
     }
     else
     {
@@ -810,7 +810,7 @@ static int handle_functions(VirtualMachine *vm, Inst inst)
 {
     if (inst.type == INST_CALL)
     {
-        __uint64_t addr = return_value_unsigned(inst.operand);
+        uint64_t addr = return_value_unsigned(inst.operand);
         if (vm->stack[vm->stack_size] >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
@@ -830,7 +830,7 @@ static int handle_functions(VirtualMachine *vm, Inst inst)
 
 static int handle_jump(VirtualMachine *vm, Inst inst)
 {
-    __uint64_t jump_addr = return_value_unsigned(inst.operand);
+    uint64_t jump_addr = return_value_unsigned(inst.operand);
 
     if (jump_addr >= vm->program_size)
         return TRAP_ILLEGAL_JMP;
@@ -885,7 +885,7 @@ static int handle_comparison(VirtualMachine *vm)
 
 static int handle_adup(VirtualMachine *vm, Inst inst)
 {
-    __uint64_t index = return_value_unsigned(inst.operand);
+    uint64_t index = return_value_unsigned(inst.operand);
 
     if (vm->stack_size >= vm_stack_capacity || index > vm->stack_size)
         return TRAP_STACK_OVERFLOW;
@@ -899,11 +899,11 @@ static int handle_adup(VirtualMachine *vm, Inst inst)
 
 static int handle_rdup(VirtualMachine *vm, Inst inst)
 {
-    __uint64_t index = return_value_unsigned(inst.operand);
+    uint64_t index = return_value_unsigned(inst.operand);
 
     if (vm->stack_size >= vm_stack_capacity)
         return TRAP_STACK_OVERFLOW;
-    if ((__int64_t)vm->stack_size - 1 - (__int64_t)index < 0)
+    if ((int64_t)vm->stack_size - 1 - (int64_t)index < 0)
         return TRAP_STACK_UNDERFLOW;
 
     vm->stack[vm->stack_size] = vm->stack[vm->stack_size - 1 - index];
@@ -918,9 +918,9 @@ static int handle_bitwise(VirtualMachine *vm, Inst inst)
     if (vm->stack_size < (inst.type == INST_NOT ? 1 : 2))
         return TRAP_STACK_UNDERFLOW;
 
-    __uint64_t a = return_value_unsigned(vm->stack[vm->stack_size - 1]);
-    __uint64_t b = (inst.type != INST_NOT) ? return_value_unsigned(vm->stack[vm->stack_size - 2]) : 0;
-    __uint64_t result;
+    uint64_t a = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+    uint64_t b = (inst.type != INST_NOT) ? return_value_unsigned(vm->stack[vm->stack_size - 2]) : 0;
+    uint64_t result;
 
     bool both_nan = is_nan(vm->stack[vm->stack_size - 1]) &&
                     (inst.type == INST_NOT || is_nan(vm->stack[vm->stack_size - 2]));
@@ -1172,7 +1172,7 @@ void vm_internal_free(VirtualMachine *vm)
     free((void *)vm->stack);
 }
 
-int vm_exec_program(VirtualMachine *vm, __int64_t limit, bool debug)
+int vm_exec_program(VirtualMachine *vm, int64_t limit, bool debug)
 {
     int ret;
     if (vm->program[vm->program_size - 1].type != INST_HALT)
@@ -1338,7 +1338,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
 
             if (get_operand_type(i) == TYPE_SIGNED_64INT)
             {
-                set_signed_64int(&operand, (__int64_t)operand);
+                set_signed_64int(&operand, (int64_t)operand);
             }
             else if (get_operand_type(i) == TYPE_UNSIGNED_64INT)
             {
@@ -1350,7 +1350,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
                     compilation_successful = false;
                     return (Inst){0};
                 }
-                set_unsigned_64int(&operand, (__uint64_t)operand);
+                set_unsigned_64int(&operand, (uint64_t)operand);
             }
 
             return (Inst){.type = i, .operand = operand};
@@ -1373,7 +1373,7 @@ static void process_label(String_View label, size_t program_size)
         return;
     }
     double operand = 0;
-    set_unsigned_64int(&operand, (__uint64_t)program_size);
+    set_unsigned_64int(&operand, (uint64_t)program_size);
     push_to_label_array(label, operand);
 }
 
@@ -1411,7 +1411,7 @@ static void check_unresolved_labels()
     }
 }
 
-__int64_t check_start()
+int64_t check_start()
 {
     String_View start_ = cstr_as_sv("start");
     for (size_t i = 0; i < label_array_counter; i++)
@@ -1486,7 +1486,7 @@ vm_header_ vm_translate_source(String_View source, Inst *program, size_t program
 
     bool has_start = true;
 
-    __int64_t ret_val = check_start();
+    int64_t ret_val = check_start();
     if (ret_val == -1)
     {
         has_start = false;
@@ -1587,7 +1587,7 @@ String_View slurp_file(const char *file_path)
                 fprintf(stderr, "Line Number %zu -> ERROR: label capacity exceeded at label: %.*s\n", line_no, (int)label.count, label.data);
             }
             double operand = 0;
-            set_unsigned_64int(&operand, (__uint64_t)program_size);
+            set_unsigned_64int(&operand, (uint64_t)program_size);
             push_to_label_array(label, operand);
 
             if (line.count > 0) // instruction remaining after the label
@@ -1701,7 +1701,7 @@ String_View slurp_file(const char *file_path)
             compilation_successful = false;
         }
 
-        __int64_t int1 = (__int64_t)operand;
+        int64_t int1 = (int64_t)operand;
         // printf("%lld %lf\n", int1, operand);
         set_signed_64int(&operand, int1);
         // printf("%lld %lf\n", int1, operand);
@@ -1729,7 +1729,7 @@ String_View slurp_file(const char *file_path)
             fprintf(stderr, "Line Number %zu -> ERROR: %.*s overflows a 64 bit signed value\n", line_no, (int)line.count, line.data);
         }
 
-        __uint64_t int1 = (__uint64_t)operand;
+        uint64_t int1 = (uint64_t)operand;
         // printf("%lld %lf\n", int1, operand);
         set_unsigned_64int(&operand, int1);
         // printf("%lld %lf\n", int1, operand);
@@ -1779,7 +1779,7 @@ String_View slurp_file(const char *file_path)
         }
         else
         {
-            set_unsigned_64int(&operand, (__uint64_t)operand);
+            set_unsigned_64int(&operand, (uint64_t)operand);
             return (Inst){.type = INST_DUP, .operand = operand};
         }
     }
@@ -1814,7 +1814,7 @@ String_View slurp_file(const char *file_path)
         }
         else
         {
-            set_unsigned_64int(&operand, (__uint64_t)operand);
+            set_unsigned_64int(&operand, (uint64_t)operand);
             return (Inst){.type = INST_JMP, .operand = operand};
         }
     }
@@ -1849,7 +1849,7 @@ String_View slurp_file(const char *file_path)
         }
         else
         {
-            set_unsigned_64int(&operand, (__uint64_t)operand);
+            set_unsigned_64int(&operand, (uint64_t)operand);
             return (Inst){.type = INST_JMP_IF, .operand = operand};
         }
     }
@@ -2038,7 +2038,7 @@ String_View slurp_file(const char *file_path)
         }
         else
         {
-            set_unsigned_64int(&operand, (__uint64_t)operand);
+            set_unsigned_64int(&operand, (uint64_t)operand);
             return (Inst){.type = INST_ASR, .operand = operand};
         }
     }
@@ -2073,7 +2073,7 @@ String_View slurp_file(const char *file_path)
         }
         else
         {
-            set_unsigned_64int(&operand, (__uint64_t)operand);
+            set_unsigned_64int(&operand, (uint64_t)operand);
             return (Inst){.type = INST_LSR, .operand = operand};
         }
     }
@@ -2108,7 +2108,7 @@ String_View slurp_file(const char *file_path)
         }
         else
         {
-            set_unsigned_64int(&operand, (__uint64_t)operand);
+            set_unsigned_64int(&operand, (uint64_t)operand);
             return (Inst){.type = INST_SL, .operand = operand};
         }
     }
@@ -2164,8 +2164,8 @@ String_View slurp_file(const char *file_path)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        __uint64_t b1 = return_value_unsigned(inst.operand);
-        __int64_t a1 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        uint64_t b1 = return_value_unsigned(inst.operand);
+        int64_t a1 = return_value_signed(vm->stack[vm->stack_size - 1]);
         a1 >>= b1; // C right shift operator does arithmetic shift for signed operands and logical shift for unsigned ones
         double c1 = 0;
         set_signed_64int(&c1, a1);
@@ -2178,8 +2178,8 @@ String_View slurp_file(const char *file_path)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        __uint64_t b2 = return_value_unsigned(inst.operand);
-        __uint64_t a2 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        uint64_t b2 = return_value_unsigned(inst.operand);
+        uint64_t a2 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
         a2 >>= b2; // C right shift operator does arithmetic shift for signed operands and logical shift for unsigned ones
         double c2 = 0;
         set_signed_64int(&c2, a2);
@@ -2192,8 +2192,8 @@ String_View slurp_file(const char *file_path)
         {
             return TRAP_STACK_UNDERFLOW;
         }
-        __uint64_t b3 = return_value_unsigned(inst.operand);
-        __uint64_t a3 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        uint64_t b3 = return_value_unsigned(inst.operand);
+        uint64_t a3 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
         a3 <<= b3; // C right shift operator does arithmetic shift for signed operands and logical shift for unsigned ones
         double c3 = 0;
         set_signed_64int(&c3, a3);
@@ -2247,9 +2247,9 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
-        __int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
-        __int64_t ans = operand1 + operand2;
+        int64_t operand1 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        int64_t operand2 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        int64_t ans = operand1 + operand2;
 
         double ans_ = 0;
         set_signed_64int(&ans_, ans);
@@ -2264,9 +2264,9 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __uint64_t opernd11 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
-        __uint64_t opernd12 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
-        __uint64_t ns = opernd11 + opernd12;
+        uint64_t opernd11 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        uint64_t opernd12 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        uint64_t ns = opernd11 + opernd12;
 
         double ns_ = 0;
         set_unsigned_64int(&ns_, ns);
@@ -2292,9 +2292,9 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __int64_t operand3 = return_value_signed(vm->stack[vm->stack_size - 2]);
-        __int64_t operand4 = return_value_signed(vm->stack[vm->stack_size - 1]);
-        __int64_t ans2 = operand3 - operand4;
+        int64_t operand3 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        int64_t operand4 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        int64_t ans2 = operand3 - operand4;
 
         double ans_2 = 0;
         set_signed_64int(&ans_2, ans2);
@@ -2309,9 +2309,9 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __uint64_t opernd3 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
-        __uint64_t opernd4 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
-        __uint64_t ns2 = opernd3 - opernd4;
+        uint64_t opernd3 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        uint64_t opernd4 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        uint64_t ns2 = opernd3 - opernd4;
 
         double ns_2 = 0;
         set_unsigned_64int(&ns_2, ns2);
@@ -2337,9 +2337,9 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __int64_t operand5 = return_value_signed(vm->stack[vm->stack_size - 2]);
-        __int64_t operand6 = return_value_signed(vm->stack[vm->stack_size - 1]);
-        __int64_t ans3 = operand5 * operand6;
+        int64_t operand5 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        int64_t operand6 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        int64_t ans3 = operand5 * operand6;
 
         double ans_3 = 0;
         set_signed_64int(&ans_3, ans3);
@@ -2354,9 +2354,9 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __uint64_t opernd5 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
-        __uint64_t opernd6 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
-        __uint64_t ns3 = opernd5 * opernd6;
+        uint64_t opernd5 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        uint64_t opernd6 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        uint64_t ns3 = opernd5 * opernd6;
 
         double ns_3 = 0;
         set_unsigned_64int(&ns_3, ns3);
@@ -2371,15 +2371,15 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __int64_t opernd1 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        int64_t opernd1 = return_value_signed(vm->stack[vm->stack_size - 1]);
         if (!opernd1)
         {
             return TRAP_DIV_BY_ZERO;
         }
 
-        __int64_t operand7 = return_value_signed(vm->stack[vm->stack_size - 2]);
-        __int64_t operand8 = return_value_signed(vm->stack[vm->stack_size - 1]);
-        __int64_t ans4 = operand7 / operand8;
+        int64_t operand7 = return_value_signed(vm->stack[vm->stack_size - 2]);
+        int64_t operand8 = return_value_signed(vm->stack[vm->stack_size - 1]);
+        int64_t ans4 = operand7 / operand8;
 
         double ans_4 = 0;
         set_signed_64int(&ans_4, ans4);
@@ -2394,15 +2394,15 @@ String_View slurp_file(const char *file_path)
             return TRAP_STACK_UNDERFLOW;
         }
 
-        __uint64_t opernd2 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        uint64_t opernd2 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
         if (!opernd2)
         {
             return TRAP_DIV_BY_ZERO;
         }
 
-        __uint64_t opernd7 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
-        __uint64_t opernd8 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
-        __uint64_t ns4 = opernd7 / opernd8;
+        uint64_t opernd7 = return_value_unsigned(vm->stack[vm->stack_size - 2]);
+        uint64_t opernd8 = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+        uint64_t ns4 = opernd7 / opernd8;
 
         double ns_4 = 0;
         set_unsigned_64int(&ns_4, ns4);
@@ -2431,7 +2431,7 @@ String_View slurp_file(const char *file_path)
         vm->halt = 1;
         break;
     case INST_JMP:
-        __uint64_t opernd = return_value_unsigned(inst.operand);
+        uint64_t opernd = return_value_unsigned(inst.operand);
         if (opernd >= vm->program_size)
         {
             return TRAP_ILLEGAL_JMP;
@@ -2448,7 +2448,7 @@ String_View slurp_file(const char *file_path)
         vm->instruction_pointer++;
         break;
     case INST_JMP_IF:
-        __uint64_t opernd111 = return_value_unsigned(inst.operand);
+        uint64_t opernd111 = return_value_unsigned(inst.operand);
         if (vm->stack_size < 1)
         {
             return TRAP_STACK_UNDERFLOW;
@@ -2468,13 +2468,13 @@ String_View slurp_file(const char *file_path)
         }
         break;
     case INST_DUP:
-        __uint64_t opernd222 = return_value_unsigned(inst.operand);
+        uint64_t opernd222 = return_value_unsigned(inst.operand);
         // printf("%lld\n", opernd2);
         if (vm->stack_size >= vm_stack_capacity)
         {
             return TRAP_STACK_OVERFLOW;
         }
-        if ((__int64_t)vm->stack_size - 1 - (__int64_t)(opernd222) < 0)
+        if ((int64_t)vm->stack_size - 1 - (int64_t)(opernd222) < 0)
         {
             return TRAP_STACK_UNDERFLOW;
         }
@@ -2490,16 +2490,16 @@ String_View slurp_file(const char *file_path)
 
         if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
         {
-            __uint64_t raw_1 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
-            __uint64_t raw_2 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
-            __uint64_t raw_3 = ((raw_1 & raw_2) | 0xFFF1000000000000);
+            uint64_t raw_1 = (*(uint64_t *)&vm->stack[vm->stack_size - 2]);
+            uint64_t raw_2 = (*(uint64_t *)&vm->stack[vm->stack_size - 1]);
+            uint64_t raw_3 = ((raw_1 & raw_2) | 0xFFF1000000000000);
             vm->stack[vm->stack_size - 2] = *(double *)&raw_3;
         }
         else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1])) // for some reason i provide functionality of bitwise operations between any two floating point numbers!
         {
-            __uint64_t raw_1 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
-            __uint64_t raw_2 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
-            __uint64_t raw_3 = ((raw_1 & raw_2));
+            uint64_t raw_1 = (*(uint64_t *)&vm->stack[vm->stack_size - 2]);
+            uint64_t raw_2 = (*(uint64_t *)&vm->stack[vm->stack_size - 1]);
+            uint64_t raw_3 = ((raw_1 & raw_2));
             vm->stack[vm->stack_size - 2] = *(double *)&raw_3;
         }
         else
@@ -2519,16 +2519,16 @@ String_View slurp_file(const char *file_path)
 
         if (is_nan(vm->stack[vm->stack_size - 2]) && is_nan(vm->stack[vm->stack_size - 1]))
         {
-            __uint64_t raw_4 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
-            __uint64_t raw_5 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
-            __uint64_t raw_6 = ((raw_4 | raw_5) | 0xFFF1000000000000);
+            uint64_t raw_4 = (*(uint64_t *)&vm->stack[vm->stack_size - 2]);
+            uint64_t raw_5 = (*(uint64_t *)&vm->stack[vm->stack_size - 1]);
+            uint64_t raw_6 = ((raw_4 | raw_5) | 0xFFF1000000000000);
             vm->stack[vm->stack_size - 2] = *(double *)&raw_6;
         }
         else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1])) // for some reason i provide functionality of bitwise operations between any two floating point numbers!
         {
-            __uint64_t raw_4 = (*(__uint64_t *)&vm->stack[vm->stack_size - 2]);
-            __uint64_t raw_5 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
-            __uint64_t raw_6 = ((raw_4 | raw_5));
+            uint64_t raw_4 = (*(uint64_t *)&vm->stack[vm->stack_size - 2]);
+            uint64_t raw_5 = (*(uint64_t *)&vm->stack[vm->stack_size - 1]);
+            uint64_t raw_6 = ((raw_4 | raw_5));
             vm->stack[vm->stack_size - 2] = *(double *)&raw_6;
         }
         else
@@ -2548,14 +2548,14 @@ String_View slurp_file(const char *file_path)
 
         if (is_nan(vm->stack[vm->stack_size - 1]))
         {
-            __uint64_t raw_7 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
-            __uint64_t raw_8 = (~raw_7 | 0xFFF1000000000000);
+            uint64_t raw_7 = (*(uint64_t *)&vm->stack[vm->stack_size - 1]);
+            uint64_t raw_8 = (~raw_7 | 0xFFF1000000000000);
             vm->stack[vm->stack_size - 1] = *(double *)&raw_8;
         }
         else if (!is_nan(vm->stack[vm->stack_size - 2]) && !is_nan(vm->stack[vm->stack_size - 1])) // for some reason i provide functionality of bitwise operations between any two floating point numbers!
         {
-            __uint64_t raw_7 = (*(__uint64_t *)&vm->stack[vm->stack_size - 1]);
-            __uint64_t raw_8 = (~raw_7);
+            uint64_t raw_7 = (*(uint64_t *)&vm->stack[vm->stack_size - 1]);
+            uint64_t raw_8 = (~raw_7);
             vm->stack[vm->stack_size - 2] = *(double *)&raw_8;
         }
         else

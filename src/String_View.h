@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 #include <ctype.h>
 
 typedef struct
@@ -13,7 +14,7 @@ typedef struct
     char *data;
 } String_View;
 
-typedef __int64_t word;
+typedef int64_t word;
 
 #define SUCCESS 1
 #define FAILURE 0

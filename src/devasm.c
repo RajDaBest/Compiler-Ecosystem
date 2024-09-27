@@ -21,7 +21,7 @@ int main(int argc, char **argv)
         printf("%s ", get_inst_name(program[i].type));
         if (has_operand_function(program[i].type))
         {
-            __uint8_t op_type = get_operand_type(program[i].type);
+            uint8_t op_type = get_operand_type(program[i].type);
             if (op_type == TYPE_DOUBLE)
             {
                 printf("%lf", program[i].operand);
