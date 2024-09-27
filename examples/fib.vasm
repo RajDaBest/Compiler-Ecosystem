@@ -1,0 +1,26 @@
+#define print_f64 2
+
+start:
+
+    fpush 10 ; number of fib numbers to be displayed minus print_f64
+    fpush 0.0
+    native print_f64
+    fpush 1.0
+    native print_f64
+
+loop:
+
+    rdup 1 
+    rdup 1 
+    fplus 
+    native print_f64
+
+    adup 0
+    fpush 1.0
+    fminus
+    aswap 0
+    pop
+    adup 0
+    fjmp_if loop 
+
+    halt

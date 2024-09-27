@@ -23,7 +23,7 @@ static Trap vm_free(VirtualMachine *vm)
 
     __uint64_t ptr = (__uint64_t)malloc(return_value_unsigned(vm->stack[vm->stack_size - 1]));
     vm->stack_size--;
-    free ((void *)ptr);
+    free((void *)ptr);
 
     return TRAP_OK;
 }
@@ -69,13 +69,14 @@ static Trap vm_print_s64(VirtualMachine *vm)
 
 void print_usage_and_exit()
 {
-    fprintf(stderr, "Usage: ./virtmach --action <asm|run> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--debug] <input> [output]\n");
-    fprintf(stderr, "  --action <asm|run>         Action to perform ('asm' to assemble, 'run' to execute)\n");
+    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--save-vpp [filename]] [--debug] <input> [output]\n");
+    fprintf(stderr, "  --action <asm|run|pp>      Action to perform ('asm' to assemble, 'run' to execute, 'pp' to preprocess)\n");
     fprintf(stderr, "  --stack-size <size>        Optional stack size (default: 1024)\n");
     fprintf(stderr, "  --program-capacity <size>  Optional program capacity (default: 1024)\n");
     fprintf(stderr, "  --limit <n>                Optional instruction limit, -1 for no limit (default: -1)\n");
+    fprintf(stderr, "  --save-vpp [filename]      Save preprocessed file, optional filename (default: input.vpp)\n");
     fprintf(stderr, "  --debug                    Enable debug mode (optional)\n");
-    fprintf(stderr, "  <input>                    Input file (for 'asm' or 'run')\n");
+    fprintf(stderr, "  <input>                    Input file (for 'asm', 'run', or 'pp')\n");
     fprintf(stderr, "  [output]                   Output file (only for 'asm' action)\n");
     exit(EXIT_FAILURE);
 }
@@ -95,6 +96,9 @@ int main(int argc, char **argv)
 {
     __int64_t limit = -1; // Default instruction limit: unlimited (-1)
     int debug = 0;        // Default debug mode: disabled
+    int save_vpp = 0;     // Flag to check if --save-vpp is provided
+    const char *vpp_filename = NULL;
+
     if (argc < 3)
     {
         print_usage_and_exit();
@@ -142,6 +146,14 @@ int main(int argc, char **argv)
             }
             limit = atoll(argv[++i]);
         }
+        else if (strcmp(argv[i], "--save-vpp") == 0)
+        {
+            save_vpp = 1;
+            if (i + 1 < argc && argv[i + 1][0] != '-') // Check if there's a filename provided
+            {
+                vpp_filename = argv[++i];
+            }
+        }
         else if (strcmp(argv[i], "--debug") == 0)
         {
             debug = 1; // Enable debug mode if --debug is present
@@ -158,7 +170,7 @@ int main(int argc, char **argv)
         {
             fprintf(stderr, "ERROR: Too many arguments.\n");
             print_usage_and_exit();
-        } 
+        }
     }
 
     if (!action)
@@ -167,16 +179,45 @@ int main(int argc, char **argv)
         print_usage_and_exit();
     }
 
+    // Default vpp file name if not provided, without .vasm extension
+    char default_vpp_file[100];
+    if (!vpp_filename)
+    {
+        size_t i = 0;
+        for (; i < strlen(input); i++)
+        {
+            if (input[i + 1] == '.')
+            {
+                break;
+            }
+        }
+        memcpy(default_vpp_file, input, i + 1);
+        default_vpp_file[i + 1] = '\0';
+        sprintf(default_vpp_file, "%s.vpp", default_vpp_file); 
+        vpp_filename = default_vpp_file;
+    }
+
     if (strcmp(action, "asm") == 0)
     {
         if (!input || !output)
         {
-            fprintf(stderr, "./virtmach --action asm <input.vasm> <output.vm>\n");
-            fprintf(stderr, "ERROR: expected input and output files for the 'asm' action.\n");
+            fprintf(stderr, "ERROR: Expected input and output files for the 'asm' action.\n");
+            print_usage_and_exit();
+        }
+
+        // Preprocess the input file
+        char pre_process[200];
+        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);
+        int result = system(pre_process);
+        if (result != 0)
+        {
+            fprintf(stderr, "ERROR: Preprocessing failed with error code: %d\n", result);
             exit(EXIT_FAILURE);
         }
 
-        String_View source = slurp_file(input);
+        printf("Processing file: %s\n", vpp_filename);
+        String_View source = slurp_file(vpp_filename);
+
         label_init();
         Inst program[vm_program_capacity];
         vm_header_ header = vm_translate_source(source, program, vm_program_capacity);
@@ -184,15 +225,22 @@ int main(int argc, char **argv)
         free((void *)source.data);
         vm_save_program_to_file(program, header, output);
 
+        if (!save_vpp)
+        {
+            // Optionally remove the vpp file if not needed
+            char rm_file[200];
+            sprintf(rm_file, "rm %s", vpp_filename);
+            system(rm_file);
+        }
+
         return EXIT_SUCCESS;
     }
     else if (strcmp(action, "run") == 0)
     {
         if (!input)
         {
-            fprintf(stderr, "./virtmach --action run <file.vm>\n");
-            fprintf(stderr, "ERROR: expected a .vm file for the 'run' action.\n");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "ERROR: Expected a .vm file for the 'run' action.\n");
+            print_usage_and_exit();
         }
 
         VirtualMachine vm;
@@ -207,9 +255,30 @@ int main(int argc, char **argv)
 
         return EXIT_SUCCESS;
     }
+    else if (strcmp(action, "pp") == 0)
+    {
+        if (!input)
+        {
+            fprintf(stderr, "ERROR: Expected an input file for the 'pp' action.\n");
+            print_usage_and_exit();
+        }
+
+        // Preprocess the input file
+        char pre_process[200];
+        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);
+        int result = system(pre_process);
+        if (result != 0)
+        {
+            fprintf(stderr, "ERROR: Preprocessing failed with error code: %d\n", result);
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Preprocessed file saved as: %s\n", vpp_filename);
+        return EXIT_SUCCESS;
+    }
     else
     {
-        fprintf(stderr, "ERROR: Unknown action '%s'. Expected 'asm' or 'run'.\n", action);
+        fprintf(stderr, "ERROR: Unknown action '%s'. Expected 'asm', 'run', or 'pp'.\n", action);
         print_usage_and_exit();
     }
 

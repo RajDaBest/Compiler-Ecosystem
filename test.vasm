@@ -1,8 +1,0 @@
-start:
-
-    upush 16
-    native 0 # call vm_alloc
-    native 1 # call vm_free
-    upush 120
-    native 4
-    halt

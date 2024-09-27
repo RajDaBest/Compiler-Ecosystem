@@ -851,7 +851,7 @@ static int handle_jump(VirtualMachine *vm, Inst inst)
     {
         if (vm->stack_size < 1)
             return TRAP_STACK_UNDERFLOW;
-        if ((vm->stack[vm->stack_size - 1]) < EPSILON)
+        if (!((vm->stack[vm->stack_size - 1]) < EPSILON))
         {
             vm->stack_size--;
             vm->instruction_pointer = jump_addr;
@@ -991,11 +991,8 @@ static int handle_pop(VirtualMachine *vm, Inst inst)
     if (inst.type == INST_POP_AT)
     {
         size_t index_to_pop = return_value_unsigned(inst.operand);
-        if (index_to_pop < 0)
-        {
-            return TRAP_STACK_UNDERFLOW;
-        }
-        else if (index_to_pop >= vm->stack_size)
+        
+        if (index_to_pop >= vm->stack_size)
         {
             return TRAP_STACK_OVERFLOW;
         }
@@ -1441,7 +1438,7 @@ vm_header_ vm_translate_source(String_View source, Inst *program, size_t program
 
         line_no++;
         String_View line = sv_chop_by_delim(&source, '\n');
-        line = sv_chop_by_delim(&line, '#'); // Remove comments
+        line = sv_chop_by_delim(&line, ';'); // Remove comments
         sv_trim_left(&line);
         sv_trim_right(&line);
 
