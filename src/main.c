@@ -79,7 +79,7 @@ static Trap vm_print_s64(VirtualMachine *vm)
 
 void print_usage_and_exit()
 {
-    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--save-vpp [filename]] [--debug] <input> [output]\n");
+    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--save-vpp [filename]] [--debug] [--vpp] <input> [output]\n");
     exit(EXIT_FAILURE);
 }
 
@@ -99,6 +99,7 @@ int main(int argc, char **argv)
     int64_t limit = -1; // Default instruction limit: unlimited (-1)
     int debug = 0;        // Default debug mode: disabled
     int save_vpp = 0;     // Flag to check if --save-vpp is provided
+    int use_vpp = 0;      // Flag to check if --vpp is provided
     const char *vpp_filename = NULL;
 
     if (argc < 3)
@@ -160,6 +161,10 @@ int main(int argc, char **argv)
         {
             debug = 1; // Enable debug mode if --debug is present
         }
+        else if (strcmp(argv[i], "--vpp") == 0)
+        {
+            use_vpp = 1; // Enable vpp preprocessor if --vpp is present
+        }
         else if (!input)
         {
             input = argv[i];
@@ -199,21 +204,29 @@ int main(int argc, char **argv)
         vpp_filename = default_vpp_file;
     }
 
-    if (strcmp(action, "asm") == 0)
+    if (strcmp(action, "asm") == 0 || strcmp(action, "pp") == 0)
     {
-        if (!input || !output)
+        if (!input)
         {
-            fprintf(stderr, "ERROR: Expected input and output files for the 'asm' action.\n");
+            fprintf(stderr, "ERROR: Expected input file for the '%s' action.\n", action);
             print_usage_and_exit();
         }
 
         // Preprocess the input file
         char pre_process[300];
+        if (use_vpp)
+        {
+            sprintf(pre_process, "vpp %s", input);
+        }
+        else
+        {
 #ifdef _WIN32
-        sprintf(pre_process, "cl /EP %s > %s", input, vpp_filename); // MSVC preprocessor
+            sprintf(pre_process, "cl /EP %s > %s", input, vpp_filename); // MSVC preprocessor
 #else
-        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);   // GCC preprocessor for non-Windows
+            sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);   // GCC preprocessor for non-Windows
 #endif
+        }
+
         int result = SYSTEM_COMMAND(pre_process);
         if (result != 0)
         {
@@ -221,6 +234,14 @@ int main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
 
+        printf("Preprocessed file saved as: %s\n", vpp_filename);
+
+        if (strcmp(action, "pp") == 0)
+        {
+            return EXIT_SUCCESS;
+        }
+
+        // Continue with assembly if action is "asm"
         printf("Processing file: %s\n", vpp_filename);
         String_View source = slurp_file(vpp_filename);
 
@@ -262,31 +283,6 @@ int main(int argc, char **argv)
         vm_exec_program(&vm, limit, debug);
         vm_internal_free(&vm);
 
-        return EXIT_SUCCESS;
-    }
-    else if (strcmp(action, "pp") == 0)
-    {
-        if (!input)
-        {
-            fprintf(stderr, "ERROR: Expected input file for the 'pp' action.\n");
-            print_usage_and_exit();
-        }
-
-        // Preprocess the input file
-        char pre_process[300];
-#ifdef _WIN32
-        sprintf(pre_process, "cl /EP %s > %s", input, vpp_filename); // MSVC preprocessor
-#else
-        sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);   // GCC preprocessor for non-Windows
-#endif
-        int result = SYSTEM_COMMAND(pre_process);
-        if (result != 0)
-        {
-            fprintf(stderr, "ERROR: Preprocessing failed with error code: %d\n", result);
-            exit(EXIT_FAILURE);
-        }
-
-        printf("Preprocessed file saved as: %s\n", vpp_filename);
         return EXIT_SUCCESS;
     }
     else
