@@ -572,6 +572,15 @@ void push_to_not_resolved_yet(String_View label, size_t inst_location)
 
 void push_to_label_array(String_View label, double pointing_location)
 {
+    for(size_t i = 0; i < label_array_counter; i++)
+    {
+        if (sv_eq(label_array[i].label, label))
+        {
+            fprintf(stderr, "Line Number %zu -> ERROR: Label '%.*s' redefinition\n", line_no, (int)label.count, label.data);
+            compilation_successful = false;
+            return;
+        }
+    }
     label_array[label_array_counter].label_pointing_location = pointing_location;
     label_array[label_array_counter].label = label;
     label_array_counter++;
