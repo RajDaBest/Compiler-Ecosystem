@@ -1,4 +1,4 @@
-#define print_f64 2
+#include "vstdlib.h"
 
 start:
 
