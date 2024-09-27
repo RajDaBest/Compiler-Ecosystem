@@ -4,3 +4,4 @@ gmon.out
 output.vm
 ./src/nan
 ./bin
+test.vasm
