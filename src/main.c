@@ -1,3 +1,13 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifdef _WIN32
+#define SYSTEM_COMMAND(command) system("cmd /c " command)
+#else
+#define SYSTEM_COMMAND(command) system(command)
+#endif
+
 #define _VM_IMPLEMENTATION
 #include "virt_mach.h"
 
@@ -21,7 +31,7 @@ static Trap vm_free(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    __uint64_t ptr = (__uint64_t)malloc(return_value_unsigned(vm->stack[vm->stack_size - 1]));
+    __uint64_t ptr = return_value_unsigned(vm->stack[vm->stack_size - 1]);
     vm->stack_size--;
     free((void *)ptr);
 
@@ -208,7 +218,7 @@ int main(int argc, char **argv)
         // Preprocess the input file
         char pre_process[200];
         sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);
-        int result = system(pre_process);
+        int result = SYSTEM_COMMAND(pre_process);
         if (result != 0)
         {
             fprintf(stderr, "ERROR: Preprocessing failed with error code: %d\n", result);
@@ -229,8 +239,12 @@ int main(int argc, char **argv)
         {
             // Optionally remove the vpp file if not needed
             char rm_file[200];
-            sprintf(rm_file, "rm %s", vpp_filename);
-            system(rm_file);
+#ifdef _WIN32
+            sprintf(rm_file, "del %s", vpp_filename); // Use 'del' for Windows
+#else
+            sprintf(rm_file, "rm %s", vpp_filename);  // Use 'rm' for Linux
+#endif
+            SYSTEM_COMMAND(rm_file);
         }
 
         return EXIT_SUCCESS;
@@ -259,14 +273,14 @@ int main(int argc, char **argv)
     {
         if (!input)
         {
-            fprintf(stderr, "ERROR: Expected an input file for the 'pp' action.\n");
+            fprintf(stderr, "ERROR: Expected input file for the 'pp' action.\n");
             print_usage_and_exit();
         }
 
         // Preprocess the input file
         char pre_process[200];
         sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);
-        int result = system(pre_process);
+        int result = SYSTEM_COMMAND(pre_process);
         if (result != 0)
         {
             fprintf(stderr, "ERROR: Preprocessing failed with error code: %d\n", result);

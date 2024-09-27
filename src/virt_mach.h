@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdbool.h>
 
+// long is 32 bit on Windows and 64 bit on Linux; long long is 64 bit on both; so we use that to make it cross platform
+
 #define EPSILON 1e-9
 #define VM_STACK_CAPACITY 1024
 #define VM_PROGRAM_CAPACITY 1024
