@@ -1,4 +1,4 @@
-#include "vstdlib.h"
+#include "../src/vstdlib.vh"
 
 start:
 
