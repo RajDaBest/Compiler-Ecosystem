@@ -31,8 +31,5 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
       - name: Set VLIB environment variable
         run: echo "VLIB=${{ github.workspace }}\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Clean up previous builds
-        if: always()
-        run: .\build_msvc.bat clean
       - name: Build the project (vpp, virtmach, devasm)
         run: .\build_msvc.bat
