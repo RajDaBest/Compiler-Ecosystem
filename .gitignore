@@ -6,3 +6,4 @@ output.vm
 vpp
 test.vasm
 .vscode
+./bin/vpp

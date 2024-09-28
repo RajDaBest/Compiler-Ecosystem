@@ -298,7 +298,7 @@ int main(int argc, char **argv)
     free(define_labels_array);
     free((void *)copy_two.data);
     fclose(vpp);
-    remove("temp");
+    remove("./temp");
 
     return preprocessing_failed ? EXIT_FAILURE : EXIT_SUCCESS;
 }
