@@ -36,9 +36,11 @@ jobs:
       - name: Set up MSBuild and Visual Studio environment
         uses: microsoft/setup-msbuild@v1
 
-      - name: Build the project (vpp, virtmach, devasm)
-        run: build_msvc.bat
-
       - name: Clean up previous builds
         if: always()
-        run: build_msvc.bat clean
+        run: ./build_msvc.bat clean
+
+      - name: Build the project (vpp, virtmach, devasm)
+        run: ./build_msvc.bat
+
+      
