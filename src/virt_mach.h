@@ -444,7 +444,7 @@ void push_to_not_resolved_yet(String_View label, size_t inst_location)
 
 void push_to_label_array(String_View label, double pointing_location)
 {
-    for(size_t i = 0; i < label_array_counter; i++)
+    for (size_t i = 0; i < label_array_counter; i++)
     {
         if (sv_eq(label_array[i].label, label))
         {
@@ -874,7 +874,7 @@ static int handle_pop(VirtualMachine *vm, Inst inst)
     if (inst.type == INST_POP_AT)
     {
         size_t index_to_pop = return_value_unsigned(inst.operand);
-        
+
         if (index_to_pop >= vm->stack_size)
         {
             return TRAP_STACK_OVERFLOW;
