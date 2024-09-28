@@ -223,7 +223,7 @@ double sv_to_value(String_View *op)
         else
         {
             // Check for overflow before multiplying and adding
-            if (num > (__INT_LEAST64_MAX__ - dig) / 10)
+            if (num > (INT64_MAX - dig) / 10)
             {
                 str_errno = OPERAND_OVERFLOW; // Set error if overflow occurs
                 return -1;

@@ -31,11 +31,11 @@ uint64_t return_value_pointer(double value);
 
 void print_bits(double value)
 {
-    __int8_t *byte_arr = (__int8_t *)&value; // x86-64 is a little endian machine
+    int8_t *byte_arr = (int8_t *)&value; // x86-64 is a little endian machine
 
     for (int i = 7; i >= 0; i--)
     {
-        __int8_t byte = byte_arr[i];
+        int8_t byte = byte_arr[i];
         for (int j = 7; j >= 0; j--)
         {
             printf("%d", 1 & (byte >> j));
