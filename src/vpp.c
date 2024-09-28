@@ -24,81 +24,116 @@ define_labels *define_labels_array;
 size_t define_labels_array_counter = 0;
 bool preprocessing_failed = false;
 
-char *get_filename_without_extension(const char *path)
-{
-    char *filename = basename(strdup(path));
-    char *dot = strrchr(filename, '.');
-    if (dot != NULL)
-    {
-        *dot = '\0';
-    }
-    return filename;
-}
-
 void push_to_define_array(String_View label_name, String_View label_value)
 {
-    fprintf(stderr, "LOG: Pushing define: label_name = %.*s, label_value = %.*s\n",
-            (int)label_name.count, label_name.data,
-            (int)label_value.count, label_value.data);
-
     if (define_labels_array_counter >= VM_DEFINE_LIMIT)
     {
         fprintf(stderr, "ERROR: define labels array overflow.\n");
         exit(EXIT_FAILURE);
     }
+
     define_labels_array[define_labels_array_counter++] = (define_labels){.label_name = label_name, .label_value = label_value};
+}
+
+void print_usage_and_exit()
+{
+    fprintf(stderr, "Usage: ./program --lib <library_path> <input_file> [output_file]\n");
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char **argv)
 {
-    fprintf(stderr, "LOG: Starting program...\n");
-
-    if (argc < 2)
+    if (argc < 3)
     {
-        fprintf(stderr, "ERROR: No input file provided.\n");
-        exit(EXIT_FAILURE);
+        print_usage_and_exit();
     }
 
-    char *input = argv[1];
-    fprintf(stderr, "LOG: Input file is '%s'\n", input);
+    char *lib_path = NULL;
+    char *input = NULL;
+    char *output = NULL;
+
+    // Argument parsing
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--lib") == 0)
+        {
+            if (i + 1 < argc)
+            {
+                lib_path = argv[i + 1];
+                i++; // Skip the next argument as it's part of --lib
+            }
+            else
+            {
+                fprintf(stderr, "ERROR: Missing value for --lib argument.\n");
+                print_usage_and_exit();
+            }
+        }
+        else if (!input)
+        {
+            input = argv[i];
+        }
+        else if (!output)
+        {
+            output = argv[i];
+        }
+    }
+
+    // Check the VLIB environment variable if --lib is not provided
+    if (!lib_path)
+    {
+        lib_path = getenv("VLIB");
+        if (!lib_path)
+        {
+            fprintf(stderr, "ERROR: No --lib argument provided, and VLIB environment variable is not set.\n");
+            print_usage_and_exit();
+        }
+    }
+
+    if (!input)
+    {
+        fprintf(stderr, "ERROR: Missing required input file.\n");
+        print_usage_and_exit();
+    }
+
+    // If no output file provided, create one from input filename
+    if (!output)
+    {
+        output = malloc(MAX_PATH_LENGTH);
+        snprintf(output, MAX_PATH_LENGTH, "%.*s.vpp", (int)(strrchr(input, '.') - input), input);
+    }
 
     define_labels_array = (define_labels *)malloc(VM_DEFINE_LIMIT * sizeof(define_labels));
     if (!define_labels_array)
     {
-        fprintf(stderr, "ERROR: %%define labels array allocation failed: %s\n", strerror(errno));
+        fprintf(stderr, "ERROR: define labels array allocation failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    fprintf(stderr, "LOG: define_labels_array allocated with VM_DEFINE_LIMIT = %d\n", VM_DEFINE_LIMIT);
-
-    // Build the .vpp filename
-    char input_copy[MAX_PATH_LENGTH];
-    strncpy(input_copy, input, MAX_PATH_LENGTH - 1);
-    input_copy[MAX_PATH_LENGTH - 1] = '\0'; // Ensure null-termination
-
-    char *dir = dirname(strdup(input_copy));
-    char *filename = get_filename_without_extension(input);
 
     String_View include_processing = slurp_file(input);
     String_View copy_one = include_processing;
+
     if (include_processing.data == NULL)
     {
         fprintf(stderr, "ERROR: Failed to read input file: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    fprintf(stderr, "LOG: Successfully slurped file '%s', size = %zu bytes.\n", input, include_processing.count);
 
     size_t line_no = 0;
 
     FILE *temp = fopen("temp", "w");
+    if (!temp)
+    {
+        fprintf(stderr, "ERROR: Failed to create temp file: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
+    // Preprocessing phase: Handle include directives
     while (include_processing.count > 0)
     {
         String_View line = sv_chop_by_delim(&include_processing, '\n');
         line = sv_chop_by_delim(&line, ';'); // Remove comments
         sv_trim_left(&line);
         sv_trim_right(&line);
-
-        fprintf(stderr, "LOG: Processing line %zu, content: '%.*s'\n", line_no, (int)line.count, line.data);
 
         if (line.count == 0)
             continue; // Ignore empty lines
@@ -108,35 +143,26 @@ int main(int argc, char **argv)
             String_View directive = sv_chop_by_delim(&line, ' ');
             sv_trim_left(&line);
 
-            fprintf(stderr, "LOG: Found directive '%.*s'\n", (int)directive.count, directive.data);
             if (sv_eq(directive, cstr_as_sv("%include")))
             {
-                if (!line.count)
+                if (line.count == 0)
                 {
                     fprintf(stderr, "Line Number %zu -> ERROR: %%include directive has no file\n", line_no);
                     preprocessing_failed = true;
-                    continue; // Skip to next line
+                    continue;
                 }
 
                 String_View include_label = sv_chop_by_delim(&line, '>');
-                if (line.count > 0)
-                {
-                    fprintf(stderr, "Line number %zu -> ERROR: invalid %%include usage\n", line_no);
-                    preprocessing_failed = true;
-                    continue;
-                }
-
                 sv_chop_by_delim(&include_label, '<');
                 if (!include_label.count)
                 {
-                    fprintf(stderr, "Line number %zu -> ERROR: invalid %%include usage\n", line_no);
+                    fprintf(stderr, "Line number %zu -> ERROR: Invalid %%include usage\n", line_no);
                     preprocessing_failed = true;
                     continue;
                 }
 
-                char file_name[128];
-                snprintf(file_name, 128, "../lib/%.*s", (int)include_label.count, include_label.data);
-                printf("%s\n", file_name);
+                char file_name[MAX_PATH_LENGTH];
+                snprintf(file_name, sizeof(file_name), "%s/%.*s", lib_path, (int)include_label.count, include_label.data);
 
                 FILE *file = fopen(file_name, "r");
                 if (!file)
@@ -146,49 +172,47 @@ int main(int argc, char **argv)
                 }
 
                 fseek(file, 0, SEEK_END);
-                size_t end = ftell(file);
-
+                size_t file_size = ftell(file);
                 fseek(file, 0, SEEK_SET);
-                if (end > MAX_INCLUDE_FILE_LENGTH)
+
+                if (file_size > MAX_INCLUDE_FILE_LENGTH)
                 {
-                    fprintf(stderr, "Line Number %zu -> ERROR: %%include <%s> exceeded MAX_INCLUDE_FILE_LENGTH", line_no, file_name);
+                    fprintf(stderr, "Line Number %zu -> ERROR: %%include <%s> exceeded MAX_INCLUDE_FILE_LENGTH\n", line_no, file_name);
+                    fclose(file);
                     exit(EXIT_FAILURE);
                 }
 
-                char include_file_array[end];
-                fread(include_file_array, end, 1, file);
-
-                fwrite(include_file_array, end, 1, temp);
+                char include_file_array[file_size];
+                fread(include_file_array, file_size, 1, file);
+                fwrite(include_file_array, file_size, 1, temp);
                 fprintf(temp, "\n");
 
                 fclose(file);
             }
         }
         else
-            {
-                fprintf(temp, "%.*s\n", (int)line.count, line.data);
-            }
-            fflush(temp);
+        {
+            fprintf(temp, "%.*s\n", (int)line.count, line.data);
+        }
+        fflush(temp);
         line_no++;
     }
 
-    line_no = 0;
+    fclose(temp);
 
-    char vpp_filename[MAX_PATH_LENGTH];
-    snprintf(vpp_filename, sizeof(vpp_filename), "%s/%s.vpp", dir, filename);
-
-    fprintf(stderr, "LOG: Output vpp filename is '%s'\n", vpp_filename);
-
-    FILE *vpp = fopen(vpp_filename, "w"); // Use write mode instead of append
+    // Open the VPP output file
+    FILE *vpp = fopen(output, "w");
     if (!vpp)
     {
-        fprintf(stderr, "ERROR: Failed to open file %s: %s\n", vpp_filename, strerror(errno));
+        fprintf(stderr, "ERROR: Failed to open file %s: %s\n", output, strerror(errno));
         exit(EXIT_FAILURE);
     }
 
+    // Processing the temp file with defines
     String_View unprocessed_file = slurp_file("temp");
     String_View copy_two = unprocessed_file;
 
+    line_no = 0;
     while (unprocessed_file.count > 0)
     {
         String_View line = sv_chop_by_delim(&unprocessed_file, '\n');
@@ -200,24 +224,17 @@ int main(int argc, char **argv)
             String_View directive = sv_chop_by_delim(&line, ' ');
             sv_trim_left(&line);
 
-            fprintf(stderr, "LOG: Found directive '%.*s'\n", (int)directive.count, directive.data);
-
             if (sv_eq(directive, cstr_as_sv("%define")))
             {
-                if (!line.count)
+                if (line.count == 0)
                 {
                     fprintf(stderr, "Line Number %zu -> ERROR: %%define directive has no label\n", line_no);
                     preprocessing_failed = true;
-                    continue; // Skip to next line
+                    continue;
                 }
 
                 String_View define_label = sv_chop_by_delim(&line, ' ');
-                sv_trim_left(&line);
                 String_View label_value = sv_chop_by_delim(&line, ' ');
-
-                fprintf(stderr, "LOG: Parsed %%define: label_name = '%.*s', label_value = '%.*s'\n",
-                        (int)define_label.count, define_label.data,
-                        (int)label_value.count, label_value.data);
 
                 if (!label_value.count)
                 {
@@ -231,30 +248,19 @@ int main(int argc, char **argv)
         }
         else
         {
+            // Replace tokens with defined values
             while (line.count > 0)
             {
-                bool found = false;
                 String_View token = sv_chop_by_delim(&line, ' ');
-                sv_trim_left(&line);
-
-                fprintf(stderr, "LOG: Processing token '%.*s'\n", (int)token.count, token.data);
+                bool found = false;
 
                 for (size_t i = 0; i < define_labels_array_counter; i++)
                 {
                     if (sv_eq(define_labels_array[i].label_name, token))
                     {
-                        fprintf(stderr, "LOG: Replacing token '%.*s' with value '%.*s'\n",
-                                (int)token.count, token.data,
-                                (int)define_labels_array[i].label_value.count,
-                                define_labels_array[i].label_value.data);
-
                         if (define_labels_array[i].label_value.count > 0)
                         {
-                            if (fprintf(vpp, "%.*s ", (int)define_labels_array[i].label_value.count, define_labels_array[i].label_value.data) < 0)
-                            {
-                                fprintf(stderr, "ERROR: Failed to write to output file: %s\n", strerror(errno));
-                                exit(EXIT_FAILURE);
-                            }
+                            fprintf(vpp, "%.*s ", (int)define_labels_array[i].label_value.count, define_labels_array[i].label_value.data);
                         }
                         found = true;
                         break;
@@ -263,34 +269,21 @@ int main(int argc, char **argv)
 
                 if (!found)
                 {
-                    fprintf(stderr, "LOG: Token '%.*s' not found in defines, writing as is.\n", (int)token.count, token.data);
-                    if (fprintf(vpp, "%.*s ", (int)token.count, token.data) < 0)
-                    {
-                        fprintf(stderr, "ERROR: Failed to write to output file: %s\n", strerror(errno));
-                        exit(EXIT_FAILURE);
-                    }
+                    fprintf(vpp, "%.*s ", (int)token.count, token.data);
                 }
             }
-            if (fprintf(vpp, "\n") < 0)
-            {
-                fprintf(stderr, "ERROR: Failed to write newline to output file: %s\n", strerror(errno));
-                exit(EXIT_FAILURE);
-            }
-            fflush(vpp);
+            fprintf(vpp, "\n");
         }
-
+        fflush(vpp);
         line_no++;
     }
 
-    free ((void *)copy_one.data);
-    free ((void *)copy_two.data);
- 
-    free(define_labels_array); // Free define_labels_array
-    fclose(vpp); 
-    fclose(temp);
+    // Cleanup
+    free(define_labels_array);
+    free((void *)copy_one.data);
+    free((void *)copy_two.data);
     remove("temp");
-
-    fprintf(stderr, "LOG: Finished processing. Preprocessing failed = %s\n", preprocessing_failed ? "true" : "false");
+    fclose(vpp);
 
     return preprocessing_failed ? EXIT_FAILURE : EXIT_SUCCESS;
 }

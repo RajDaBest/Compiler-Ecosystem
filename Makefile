@@ -7,5 +7,9 @@ virtmach: src/main.c
 devasm: src/devasm.c 
 	gcc $(CFLAGS) -o ./bin/devasm src/devasm.c $(LIBS)
 
+vpp: src/vpp.c 
+
+	gcc $(CFLAGS) -o ./bin/vpp src/vpp.c $(LIBS)
+
 clean:
-	rm -f ./bin/virtmach ./bin/devasm
+	rm -f ./bin/virtmach ./bin/devasm ./bin/vpp

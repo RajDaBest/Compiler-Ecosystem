@@ -79,7 +79,7 @@ static Trap vm_print_s64(VirtualMachine *vm)
 
 void print_usage_and_exit()
 {
-    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--save-vpp [filename]] [--debug] [--vpp] <input> [output]\n");
+    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--lib <library-path>] [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--save-vpp [filename]] [--debug] [--vpp] <input> [output]\n");
     exit(EXIT_FAILURE);
 }
 
@@ -96,11 +96,12 @@ int64_t parse_non_negative_int(const char *str)
 
 int main(int argc, char **argv)
 {
-    int64_t limit = -1; // Default instruction limit: unlimited (-1)
-    int debug = 0;        // Default debug mode: disabled
-    int save_vpp = 0;     // Flag to check if --save-vpp is provided
-    int use_vpp = 0;      // Flag to check if --vpp is provided
+    int64_t limit = -1;    // Default instruction limit: unlimited (-1)
+    int debug = 0;         // Default debug mode: disabled
+    int save_vpp = 0;      // Flag to check if --save-vpp is provided
+    int use_vpp = 0;       // Flag to check if --vpp is provided
     const char *vpp_filename = NULL;
+    const char *lib_path = NULL; // Library path for --lib
 
     if (argc < 3)
     {
@@ -121,6 +122,15 @@ int main(int argc, char **argv)
                 print_usage_and_exit();
             }
             action = argv[++i];
+        }
+        else if (strcmp(argv[i], "--lib") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "ERROR: Missing value for --lib.\n");
+                print_usage_and_exit();
+            }
+            lib_path = argv[++i]; // Capture the library path
         }
         else if (strcmp(argv[i], "--stack-size") == 0)
         {
@@ -186,6 +196,19 @@ int main(int argc, char **argv)
         print_usage_and_exit();
     }
 
+    // Check if lib_path is provided or get it from the VLIB environment variable
+    if (!lib_path)
+    {
+        lib_path = getenv("VLIB");
+    }
+
+    // If no lib_path is provided or set, produce an error
+    if (!lib_path)
+    {
+        fprintf(stderr, "ERROR: No library path provided. Use --lib or set the VLIB environment variable.\n");
+        print_usage_and_exit();
+    }
+
     // Default vpp file name if not provided, without .vasm extension
     char default_vpp_file[100];
     if (!vpp_filename)
@@ -213,10 +236,11 @@ int main(int argc, char **argv)
         }
 
         // Preprocess the input file
-        char pre_process[300];
+        char pre_process[400];
         if (use_vpp)
         {
-            sprintf(pre_process, "vpp %s", input);
+            // Use lib_path for preprocessing
+            sprintf(pre_process, "vpp --lib %s %s", lib_path, input);
         }
         else
         {
@@ -234,15 +258,12 @@ int main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
 
-        printf("Preprocessed file saved as: %s\n", vpp_filename);
-
         if (strcmp(action, "pp") == 0)
         {
             return EXIT_SUCCESS;
         }
 
         // Continue with assembly if action is "asm"
-        printf("Processing file: %s\n", vpp_filename);
         String_View source = slurp_file(vpp_filename);
 
         label_init();
