@@ -39,7 +39,7 @@ jobs:
           setx VLIB "C:\lib"  # Using setx for persisting the env variable for the session
           
       - name: Clean up any previous builds
-        run: build_msvc.bat clean
+        run: ./build_msvc.bat clean
 
       - name: Build
-        run: build_msvc.bat
+        run: ./build_msvc.bat
