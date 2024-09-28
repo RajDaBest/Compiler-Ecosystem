@@ -6,7 +6,6 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
-#include <libgen.h>
 #include "virt_mach.h"
 #include "String_View.h"
 
