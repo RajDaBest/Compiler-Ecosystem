@@ -96,10 +96,10 @@ int64_t parse_non_negative_int(const char *str)
 
 int main(int argc, char **argv)
 {
-    int64_t limit = -1;    // Default instruction limit: unlimited (-1)
-    int debug = 0;         // Default debug mode: disabled
-    int save_vpp = 0;      // Flag to check if --save-vpp is provided
-    int use_vpp = 0;       // Flag to check if --vpp is provided
+    int64_t limit = -1; // Default instruction limit: unlimited (-1)
+    int debug = 0;      // Default debug mode: disabled
+    int save_vpp = 0;   // Flag to check if --save-vpp is provided
+    int use_vpp = 0;    // Flag to check if --vpp is provided
     const char *vpp_filename = NULL;
     const char *lib_path = NULL; // Library path for --lib
 
@@ -223,7 +223,7 @@ int main(int argc, char **argv)
         }
         memcpy(default_vpp_file, input, i + 1);
         default_vpp_file[i + 1] = '\0';
-        sprintf(default_vpp_file, "%s.vpp", default_vpp_file); 
+        sprintf(default_vpp_file, "%s.vpp", default_vpp_file);
         vpp_filename = default_vpp_file;
     }
 
@@ -247,7 +247,7 @@ int main(int argc, char **argv)
 #ifdef _WIN32
             sprintf(pre_process, "cl /EP %s > %s", input, vpp_filename); // MSVC preprocessor
 #else
-            sprintf(pre_process, "cpp -P %s %s", input, vpp_filename);   // GCC preprocessor for non-Windows
+            sprintf(pre_process, "cpp -P %s %s", input, vpp_filename); // GCC preprocessor for non-Windows
 #endif
         }
 
@@ -267,7 +267,11 @@ int main(int argc, char **argv)
         String_View source = slurp_file(vpp_filename);
 
         label_init();
+#ifdef _WIN32
+        Inst program[VM_PROGRAM_CAPACITY];
+#else
         Inst program[vm_program_capacity];
+#endif
         vm_header_ header = vm_translate_source(source, program, vm_program_capacity);
         label_free();
         free((void *)source.data);
@@ -279,7 +283,7 @@ int main(int argc, char **argv)
 #ifdef _WIN32
             sprintf(rm_file, "del %s", vpp_filename); // Use 'del' for Windows
 #else
-            sprintf(rm_file, "rm %s", vpp_filename);  // Use 'rm' for Linux
+            sprintf(rm_file, "rm %s", vpp_filename); // Use 'rm' for Linux
 #endif
             SYSTEM_COMMAND(rm_file);
         }
