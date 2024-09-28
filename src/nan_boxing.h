@@ -4,26 +4,27 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #define VALUE_IN_BITS(value)                       \
     {                                              \
         printf("%lf = \n      ", (double)(value)); \
         print_bits((double)(value));               \
     }
-#define TYPE_DOUBLE (__uint8_t)0
-#define TYPE_UNSIGNED_64INT (__uint8_t)1
-#define TYPE_SIGNED_64INT (__uint8_t)2
-#define TYPE_POINTER (__uint8_t)3
+#define TYPE_DOUBLE (uint8_t)0
+#define TYPE_UNSIGNED_64INT (uint8_t)1
+#define TYPE_SIGNED_64INT (uint8_t)2
+#define TYPE_POINTER (uint8_t)3
 
 void print_bits(double value);
 bool is_nan(double value);
-void set_signed_64int(double *value_nan, __int64_t actual_value);
-void set_unsigned_64int(double *value_nan, __uint64_t actual_value);
-void set_pointer(double *value_nan, __uint64_t actual_value);
-__uint8_t return_type(double value);
-__int64_t return_value_signed(double value);
-__uint64_t return_value_unsigned(double value);
-__uint64_t return_value_pointer(double value);
+void set_signed_64int(double *value_nan, int64_t actual_value);
+void set_unsigned_64int(double *value_nan, uint64_t actual_value);
+void set_pointer(double *value_nan, uint64_t actual_value);
+uint8_t return_type(double value);
+int64_t return_value_signed(double value);
+uint64_t return_value_unsigned(double value);
+uint64_t return_value_pointer(double value);
 
 #ifndef NAN_IMPLEMENTATION
 #define NAN_IMPLEMENTATION
@@ -47,17 +48,17 @@ void print_bits(double value)
 bool is_nan(double value)
 {
     // this next line is actually really clever holy fuck
-    __int64_t bits = (*(__int64_t *)&value); // store the raw bytes of double without typecasting; __uint64_t bits = value would just typecast
+    int64_t bits = (*(int64_t *)&value); // store the raw bytes of double without typecasting; uint64_t bits = value would just typecast
 
     // Extract the exponent and mantissa using bit masking
-    __int64_t exponent = (bits >> 52) & 0x7FF;   // 11 bits for the exponent
-    __int64_t mantissa = bits & 0xFFFFFFFFFFFFF; // 52 bits for the mantissa
+    int64_t exponent = (bits >> 52) & 0x7FF;   // 11 bits for the exponent
+    int64_t mantissa = bits & 0xFFFFFFFFFFFFF; // 52 bits for the mantissa
 
     // Check if the exponent is all 1s and mantissa is not 0
     return (exponent == 0x7FF) && (mantissa != 0);
 }
 
-void set_signed_64int(double *value_nan, __int64_t actual_value)
+void set_signed_64int(double *value_nan, int64_t actual_value)
 {
     // Check for value range
     if (actual_value > (1L << 47) || actual_value < -(1L << 47))
@@ -66,16 +67,16 @@ void set_signed_64int(double *value_nan, __int64_t actual_value)
         exit(EXIT_FAILURE);
     }
 
-    /* __int64_t bits = 0;
-    bits |= (((__int64_t)TYPE_SIGNED_64INT) << 48); // the typecast won't do a sign extension, so lite
+    /* int64_t bits = 0;
+    bits |= (((int64_t)TYPE_SIGNED_64INT) << 48); // the typecast won't do a sign extension, so lite
     bits |= 0x7FF0000000000000L;
     actual_value &= 0x00007FFFFFFFFFFFL;
     bits |= actual_value;
 
     *value_nan = (*(double *)&bits); */
 
-    __int64_t bits = 0;
-    bits |= ((__int64_t)TYPE_SIGNED_64INT) << 48L;
+    int64_t bits = 0;
+    bits |= ((int64_t)TYPE_SIGNED_64INT) << 48L;
     bits |= 0xFFF0000000000000;
     actual_value &= 0x0000FFFFFFFFFFFF;
 
@@ -84,7 +85,7 @@ void set_signed_64int(double *value_nan, __int64_t actual_value)
     *value_nan = (*(double *)&bits);
 }
 
-void set_unsigned_64int(double *value_nan, __uint64_t actual_value)
+void set_unsigned_64int(double *value_nan, uint64_t actual_value)
 {
     if (actual_value > (1UL << 47))
     {
@@ -92,8 +93,8 @@ void set_unsigned_64int(double *value_nan, __uint64_t actual_value)
         exit(EXIT_FAILURE);
     }
 
-    __uint64_t bits = 0;
-    bits |= (((__uint64_t)TYPE_UNSIGNED_64INT) << 48);
+    uint64_t bits = 0;
+    bits |= (((uint64_t)TYPE_UNSIGNED_64INT) << 48);
     bits |= 0xFFF0000000000000UL;
     actual_value &= 0x000FFFFFFFFFFFFF;
     bits |= actual_value;
@@ -101,7 +102,7 @@ void set_unsigned_64int(double *value_nan, __uint64_t actual_value)
     *value_nan = (*(double *)&bits);
 }
 
-void set_pointer(double *value_nan, __uint64_t actual_value)
+void set_pointer(double *value_nan, uint64_t actual_value)
 {
     if (actual_value > (1UL << 47)) // check signed against signed; unsigned against unsigned; dont mix
     {
@@ -109,8 +110,8 @@ void set_pointer(double *value_nan, __uint64_t actual_value)
         exit(EXIT_FAILURE);
     }
 
-    __uint64_t bits = 0;
-    bits |= (((__uint64_t)TYPE_POINTER) << 48);
+    uint64_t bits = 0;
+    bits |= (((uint64_t)TYPE_POINTER) << 48);
     bits |= 0xFFF0000000000000UL;
     actual_value &= 0x000FFFFFFFFFFFFF;
     bits |= actual_value;
@@ -118,10 +119,10 @@ void set_pointer(double *value_nan, __uint64_t actual_value)
     *value_nan = (*(double *)&bits);
 }
 
-__uint8_t return_type(double value)
+uint8_t return_type(double value)
 {
-    __uint64_t bits = (*(__uint64_t *)&value);
-    __uint8_t result = (__uint8_t)((bits >> 48) & 0x000000000000000FUL);
+    uint64_t bits = (*(uint64_t *)&value);
+    uint8_t result = (uint8_t)((bits >> 48) & 0x000000000000000FUL);
     /* if (~result && ~is_nan(value))
     {
         return TYPE_DOUBLE;
@@ -129,27 +130,27 @@ __uint8_t return_type(double value)
     return result;
 }
 
-__int64_t return_value_signed(double value)
+int64_t return_value_signed(double value)
 {
-    __int64_t bits = (*(__int64_t *)&value);
-    __int64_t val = 0x0000FFFFFFFFFFFF & bits;
-    __int64_t signed_bit = ((val & (1UL << 47)) >> 47);
+    int64_t bits = (*(int64_t *)&value);
+    int64_t val = 0x0000FFFFFFFFFFFF & bits;
+    int64_t signed_bit = ((val & (1UL << 47)) >> 47);
     signed_bit && (val |= 0xFFFF000000000000);
-    return (__int64_t)val;
+    return (int64_t)val;
 }
 
-__uint64_t return_value_unsigned(double value)
+uint64_t return_value_unsigned(double value)
 {
-    __uint64_t bits = (*(__uint64_t *)&value);
-    __uint64_t val = 0x0000FFFFFFFFFFFFUL & bits;
-    return (__uint64_t)val;
+    uint64_t bits = (*(uint64_t *)&value);
+    uint64_t val = 0x0000FFFFFFFFFFFFUL & bits;
+    return (uint64_t)val;
 }
 
-__uint64_t return_value_pointer(double value)
+uint64_t return_value_pointer(double value)
 {
-    __uint64_t bits = (*(__uint64_t *)&value);
-    __uint64_t val = 0x0000FFFFFFFFFFFFUL & bits;
-    return (__uint64_t)val;
+    uint64_t bits = (*(uint64_t *)&value);
+    uint64_t val = 0x0000FFFFFFFFFFFFUL & bits;
+    return (uint64_t)val;
 }
 
 // IEEE 754 NaNs are encoded with the exponent field filled with ones (like infinity values)
