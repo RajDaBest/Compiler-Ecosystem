@@ -3,6 +3,6 @@ virtmach
 gmon.out
 output.vm
 ./src/nan
-./bin
+vpp
 test.vasm
 .vscode

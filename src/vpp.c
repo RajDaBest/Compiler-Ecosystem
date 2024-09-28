@@ -109,96 +109,112 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    String_View include_processing = slurp_file(input);
-    String_View copy_one = include_processing;
-
-    if (include_processing.data == NULL)
+    while (true)
     {
-        fprintf(stderr, "ERROR: Failed to read input file: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
 
-    size_t line_no = 0;
+        String_View include_processing = slurp_file(input);
+        String_View copy_one = include_processing;
+        size_t line_no = 0;
 
-    FILE *temp = fopen("temp", "w");
-    if (!temp)
-    {
-        fprintf(stderr, "ERROR: Failed to create temp file: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    // Preprocessing phase: Handle include directives
-    while (include_processing.count > 0)
-    {
-        String_View line = sv_chop_by_delim(&include_processing, '\n');
-        line = sv_chop_by_delim(&line, ';'); // Remove comments
-        sv_trim_left(&line);
-        sv_trim_right(&line);
-
-        if (line.count == 0)
-            continue; // Ignore empty lines
-
-        if (*line.data == '%')
+        if (include_processing.data == NULL)
         {
-            String_View directive = sv_chop_by_delim(&line, ' ');
+            fprintf(stderr, "ERROR: Failed to read input file: %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+
+        FILE *temp = fopen("temp", "w");
+        if (!temp)
+        {
+            fprintf(stderr, "ERROR: Failed to create temp file: %s\n", strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+
+        size_t include_no = 0;
+        while (include_processing.count > 0)
+        {
+            String_View line = sv_chop_by_delim(&include_processing, '\n');
+            line = sv_chop_by_delim(&line, ';'); // Remove comments
             sv_trim_left(&line);
+            sv_trim_right(&line);
 
-            if (sv_eq(directive, cstr_as_sv("%include")))
+            if (line.count == 0)
+                continue; // Ignore empty lines
+
+            if (*line.data == '%')
             {
-                if (line.count == 0)
+                String_View directive = sv_chop_by_delim(&line, ' ');
+                sv_trim_left(&line);
+
+                if (sv_eq(directive, cstr_as_sv("%include")))
                 {
-                    fprintf(stderr, "Line Number %zu -> ERROR: %%include directive has no file\n", line_no);
-                    preprocessing_failed = true;
-                    continue;
-                }
+                    if (line.count == 0)
+                    {
+                        fprintf(stderr, "Line Number %zu -> ERROR: %%include directive has no file\n", line_no);
+                        preprocessing_failed = true;
+                        continue;
+                    }
 
-                String_View include_label = sv_chop_by_delim(&line, '>');
-                sv_chop_by_delim(&include_label, '<');
-                if (!include_label.count)
-                {
-                    fprintf(stderr, "Line number %zu -> ERROR: Invalid %%include usage\n", line_no);
-                    preprocessing_failed = true;
-                    continue;
-                }
+                    String_View include_label = sv_chop_by_delim(&line, '>');
+                    sv_chop_by_delim(&include_label, '<');
+                    if (!include_label.count)
+                    {
+                        fprintf(stderr, "Line number %zu -> ERROR: Invalid %%include usage\n", line_no);
+                        preprocessing_failed = true;
+                        continue;
+                    }
 
-                char file_name[MAX_PATH_LENGTH];
-                snprintf(file_name, sizeof(file_name), "%s/%.*s", lib_path, (int)include_label.count, include_label.data);
+                    char file_name[MAX_PATH_LENGTH];
+                    snprintf(file_name, sizeof(file_name), "%s/%.*s", lib_path, (int)include_label.count, include_label.data);
 
-                FILE *file = fopen(file_name, "r");
-                if (!file)
-                {
-                    fprintf(stderr, "ERROR: Failed to open file %s: %s\n", file_name, strerror(errno));
-                    exit(EXIT_FAILURE);
-                }
+                    FILE *file = fopen(file_name, "r");
+                    if (!file)
+                    {
+                        fprintf(stderr, "ERROR: Failed to open file %s: %s\n", file_name, strerror(errno));
+                        exit(EXIT_FAILURE);
+                    }
 
-                fseek(file, 0, SEEK_END);
-                size_t file_size = ftell(file);
-                fseek(file, 0, SEEK_SET);
+                    fseek(file, 0, SEEK_END);
+                    size_t file_size = ftell(file);
+                    fseek(file, 0, SEEK_SET);
 
-                if (file_size > MAX_INCLUDE_FILE_LENGTH)
-                {
-                    fprintf(stderr, "Line Number %zu -> ERROR: %%include <%s> exceeded MAX_INCLUDE_FILE_LENGTH\n", line_no, file_name);
+                    if (file_size > MAX_INCLUDE_FILE_LENGTH)
+                    {
+                        fprintf(stderr, "Line Number %zu -> ERROR: %%include <%s> exceeded MAX_INCLUDE_FILE_LENGTH\n", line_no, file_name);
+                        fclose(file);
+                        exit(EXIT_FAILURE);
+                    }
+
+                    char include_file_array[file_size];
+                    fread(include_file_array, file_size, 1, file);
+                    fwrite(include_file_array, file_size, 1, temp);
+                    fprintf(temp, "\n");
+
                     fclose(file);
-                    exit(EXIT_FAILURE);
+                    include_no++;
                 }
-
-                char include_file_array[file_size];
-                fread(include_file_array, file_size, 1, file);
-                fwrite(include_file_array, file_size, 1, temp);
-                fprintf(temp, "\n");
-
-                fclose(file);
+                else
+                {
+                    fprintf(temp, "%.*s %.*s\n", (int)directive.count, directive.data, (int)line.count, line.data);
+                }
             }
+            else
+            {
+                fprintf(temp, "%.*s\n", (int)line.count, line.data);
+            }
+            fflush(temp);
+            line_no++;
         }
-        else
-        {
-            fprintf(temp, "%.*s\n", (int)line.count, line.data);
-        }
-        fflush(temp);
-        line_no++;
-    }
 
-    fclose(temp);
+        free((void *)copy_one.data);
+        fclose(temp);
+        if (!include_no)
+        {
+            break;
+        }
+
+        input = "temp";
+    }
+    // Preprocessing phase: Handle include directives
 
     // Open the VPP output file
     FILE *vpp = fopen(output, "w");
@@ -212,7 +228,7 @@ int main(int argc, char **argv)
     String_View unprocessed_file = slurp_file("temp");
     String_View copy_two = unprocessed_file;
 
-    line_no = 0;
+    size_t line_no = 0;
     while (unprocessed_file.count > 0)
     {
         String_View line = sv_chop_by_delim(&unprocessed_file, '\n');
@@ -280,10 +296,9 @@ int main(int argc, char **argv)
 
     // Cleanup
     free(define_labels_array);
-    free((void *)copy_one.data);
     free((void *)copy_two.data);
-    remove("temp");
     fclose(vpp);
+    remove("temp");
 
     return preprocessing_failed ? EXIT_FAILURE : EXIT_SUCCESS;
 }
