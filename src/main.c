@@ -268,7 +268,7 @@ int main(int argc, char **argv)
 
         label_init();
 #ifdef _WIN32
-        Inst program[VM_PROGRAM_CAPACITY];
+        Inst program[VM_PROGRAM_CAPACITY]; // clang does not fucking support run-time allocation of data segment memory
 #else
         Inst program[vm_program_capacity];
 #endif
