@@ -33,13 +33,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Export standard library path for the virtual machine (Windows)
-        run: |
-          echo "Setting VLIB environment variable"
-          setx VLIB "C:\lib"  # Using setx for persisting the env variable for the session
-          
-      - name: Clean up any previous builds
-        run: ./build_msvc.bat clean
+      - name: Set up MSBuild and Visual Studio environment
+        uses: microsoft/setup-msbuild@v1
 
-      - name: Build
-        run: ./build_msvc.bat
+      - name: Build the project (vpp, virtmach, devasm)
+        run: build_msvc.bat
+
+      - name: Clean up previous builds
+        if: always()
+        run: build_msvc.bat clean
