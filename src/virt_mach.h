@@ -434,134 +434,6 @@ const char *trap_as_cstr(Trap trap)
     }
 }
 
-/* const char *inst_type_as_cstr(Inst_Type type)
-{
-    switch (type)
-    {
-    case INST_FPUSH:
-        return "INST_FPUSH";
-    case INST_UPUSH:
-        return "INST_UPUSH";
-    case INST_SPUSH:
-        return "INST_SPUSH";
-    case INST_NOP:
-        return "INST_NOP";
-    case INST_SPLUS:
-        return "INST_SPLUS";
-    case INST_SMULT:
-        return "INST_SMULT";
-    case INST_SDIV:
-        return "INST_IDIV";
-    case INST_SMINUS:
-        return "INST_IMINUS";
-    case INST_UPLUS:
-        return "INST_UPLUS";
-    case INST_UMULT:
-        return "INST_UMULT";
-    case INST_UDIV:
-        return "INST_UDIV";
-    case INST_UMINUS:
-        return "INST_UMINUS";
-    case INST_FPLUS:
-        return "INST_FPLUS";
-    case INST_FMULT:
-        return "INST_FMULT";
-    case INST_FDIV:
-        return "INST_FDIV";
-    case INST_FMINUS:
-        return "INST_FMINUS";
-    case INST_HALT:
-        return "INST_HALT";
-    case INST_JMP:
-        return "INST_JMP";
-    case INST_JMP_IF:
-        return "INST_JMP_IF";
-    case INST_EQ:
-        return "INST_EQU";
-    case INST_DUP:
-        return "INST_DUP";
-    case INST_ASR:
-        return "INST_ASR";
-    case INST_LSR:
-        return "INST_LSR";
-    case INST_SL:
-        return "INST_SL";
-    case INST_AND:
-        return "INST_AND";
-    case INST_OR:
-        return "INST_OR";
-    case INST_NOT:
-        return "INST_NOT";
-    default:
-        assert(0 && "inst_type_as_cstr: unreachable");
-        break;
-    }
-} */
-
-/* const char *inst_type_as_asm_str(Inst_Type type)
-{
-    switch (type)
-    {
-    case INST_SPUSH:
-        return "spush";
-    case INST_UPUSH:
-        return "upush";
-    case INST_FPUSH:
-        return "fpush";
-    case INST_NOP:
-        return "nop";
-    case INST_SPLUS:
-        return "splus";
-    case INST_SMULT:
-        return "smult";
-    case INST_SDIV:
-        return "sdiv";
-    case INST_SMINUS:
-        return "sminus";
-    case INST_UPLUS:
-        return "uplus";
-    case INST_UMULT:
-        return "umult";
-    case INST_UDIV:
-        return "udiv";
-    case INST_UMINUS:
-        return "uminus";
-    case INST_FPLUS:
-        return "fplus";
-    case INST_FDIV:
-        return "fdiv";
-    case INST_FMINUS:
-        return "fminus";
-    case INST_FMULT:
-        return "fmult";
-    case INST_HALT:
-        return "halt";
-    case INST_JMP:
-        return "jmp";
-    case INST_JMP_IF:
-        return "jmp_if";
-    case INST_EQ:
-        return "equ";
-    case INST_DUP:
-        return "dup";
-    case INST_ASR:
-        return "asr";
-    case INST_LSR:
-        return "lsr";
-    case INST_SL:
-        return "sl";
-    case INST_NOT:
-        return "not";
-    case INST_AND:
-        return "and";
-    case INST_OR:
-        return "or";
-    default:
-        assert(0 && "inst_type_as_asm_str: unreachable");
-        break;
-    }
-} */
-
 void push_to_not_resolved_yet(String_View label, size_t inst_location)
 {
     not_resolved_yet[not_resolved_yet_counter].inst_location = inst_location;
@@ -2580,4 +2452,132 @@ String_View slurp_file(const char *file_path)
         break;
     }
     return TRAP_OK;
+} */
+
+/* const char *inst_type_as_cstr(Inst_Type type)
+{
+    switch (type)
+    {
+    case INST_FPUSH:
+        return "INST_FPUSH";
+    case INST_UPUSH:
+        return "INST_UPUSH";
+    case INST_SPUSH:
+        return "INST_SPUSH";
+    case INST_NOP:
+        return "INST_NOP";
+    case INST_SPLUS:
+        return "INST_SPLUS";
+    case INST_SMULT:
+        return "INST_SMULT";
+    case INST_SDIV:
+        return "INST_IDIV";
+    case INST_SMINUS:
+        return "INST_IMINUS";
+    case INST_UPLUS:
+        return "INST_UPLUS";
+    case INST_UMULT:
+        return "INST_UMULT";
+    case INST_UDIV:
+        return "INST_UDIV";
+    case INST_UMINUS:
+        return "INST_UMINUS";
+    case INST_FPLUS:
+        return "INST_FPLUS";
+    case INST_FMULT:
+        return "INST_FMULT";
+    case INST_FDIV:
+        return "INST_FDIV";
+    case INST_FMINUS:
+        return "INST_FMINUS";
+    case INST_HALT:
+        return "INST_HALT";
+    case INST_JMP:
+        return "INST_JMP";
+    case INST_JMP_IF:
+        return "INST_JMP_IF";
+    case INST_EQ:
+        return "INST_EQU";
+    case INST_DUP:
+        return "INST_DUP";
+    case INST_ASR:
+        return "INST_ASR";
+    case INST_LSR:
+        return "INST_LSR";
+    case INST_SL:
+        return "INST_SL";
+    case INST_AND:
+        return "INST_AND";
+    case INST_OR:
+        return "INST_OR";
+    case INST_NOT:
+        return "INST_NOT";
+    default:
+        assert(0 && "inst_type_as_cstr: unreachable");
+        break;
+    }
+} */
+
+/* const char *inst_type_as_asm_str(Inst_Type type)
+{
+    switch (type)
+    {
+    case INST_SPUSH:
+        return "spush";
+    case INST_UPUSH:
+        return "upush";
+    case INST_FPUSH:
+        return "fpush";
+    case INST_NOP:
+        return "nop";
+    case INST_SPLUS:
+        return "splus";
+    case INST_SMULT:
+        return "smult";
+    case INST_SDIV:
+        return "sdiv";
+    case INST_SMINUS:
+        return "sminus";
+    case INST_UPLUS:
+        return "uplus";
+    case INST_UMULT:
+        return "umult";
+    case INST_UDIV:
+        return "udiv";
+    case INST_UMINUS:
+        return "uminus";
+    case INST_FPLUS:
+        return "fplus";
+    case INST_FDIV:
+        return "fdiv";
+    case INST_FMINUS:
+        return "fminus";
+    case INST_FMULT:
+        return "fmult";
+    case INST_HALT:
+        return "halt";
+    case INST_JMP:
+        return "jmp";
+    case INST_JMP_IF:
+        return "jmp_if";
+    case INST_EQ:
+        return "equ";
+    case INST_DUP:
+        return "dup";
+    case INST_ASR:
+        return "asr";
+    case INST_LSR:
+        return "lsr";
+    case INST_SL:
+        return "sl";
+    case INST_NOT:
+        return "not";
+    case INST_AND:
+        return "and";
+    case INST_OR:
+        return "or";
+    default:
+        assert(0 && "inst_type_as_asm_str: unreachable");
+        break;
+    }
 } */
