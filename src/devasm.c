@@ -12,7 +12,11 @@ int main(int argc, char **argv)
 
     const char *input = argv[1];
 
+#ifdef _WIN32
+    Inst program[VM_PROGRAM_CAPACITY];
+#else
     Inst program[vm_program_capacity];
+#endif
     vm_header_ header = vm_load_program_from_file(program, input);
     size_t program_size = header.code_section_size;
 

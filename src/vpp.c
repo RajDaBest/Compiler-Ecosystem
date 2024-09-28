@@ -183,7 +183,11 @@ int main(int argc, char **argv)
                         exit(EXIT_FAILURE);
                     }
 
-                    char include_file_array[MAX_INCLUDE_FILE_LENGTH];
+#ifdef _WIN32
+                    char include_file_array[MAX_INCLUDE_FILE_LENGTH]; // clang does not fucking support variable length arrays
+#else
+                    char include_file_array[file_size];
+#endif
                     fread(include_file_array, file_size, 1, file);
                     fwrite(include_file_array, file_size, 1, temp);
                     fprintf(temp, "\n");
