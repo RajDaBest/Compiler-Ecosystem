@@ -14,6 +14,7 @@
 
 #define EPSILON 1e-9
 #define VM_STACK_CAPACITY 1024
+#define VM_MEMORY_CAPACITY 640 * 1024
 #define VM_PROGRAM_CAPACITY 1024
 #define VM_LABEL_CAPACITY 128
 #define VM_EQU_CAPACITY 128
@@ -39,6 +40,7 @@
 
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
+size_t vm_memory_capacity = VM_MEMORY_CAPACITY;
 size_t label_capacity = VM_LABEL_CAPACITY;
 size_t equ_label_capacity = VM_EQU_CAPACITY;
 size_t natives_capacity = VM_NATIVE_CAPACITY;
@@ -75,6 +77,7 @@ typedef enum
     TRAP_ILLEGAL_INST_ACCESS,
     TRAP_NO_HALT_FOUND,
     TRAP_ILLEGAL_OPERAND,
+    TRAP_ILLEGAL_MEMORY_ACCESS,
     TRAP_ILLEGAL_OPERATION, // doing arithmetic on floating points and ints together
 } Trap;                     // exceptions that stop the execution on the virtual machine
 
@@ -116,6 +119,8 @@ typedef enum
     INST_ASWAP,
     INST_RET,
     INST_CALL,
+    INST_READ,
+    INST_WRITE,
     INST_NATIVE,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
@@ -144,6 +149,8 @@ typedef struct VirtualMachine // structure defining the actual virtual machine
 
     bool has_start;
     size_t start_label_index;
+
+    double *static_memory;
 
     int halt;
 } VirtualMachine;
@@ -267,6 +274,10 @@ const char *get_inst_name(Inst_Type inst)
         return "rswap";
     case INST_NATIVE:
         return "native";
+    case INST_READ:
+        return "read";
+    case INST_WRITE:
+        return "write";
     default:
         return NULL; // Invalid instruction
     }
@@ -350,6 +361,10 @@ bool has_operand_function(Inst_Type inst)
         return 1;
     case INST_NATIVE:
         return 1;
+    case INST_READ:
+        return 0;
+    case INST_WRITE:
+        return 0;
     default:
         return -1; // Invalid instruction
     }
@@ -400,6 +415,7 @@ uint8_t get_operand_type(Inst_Type inst)
 
     case INST_NATIVE:
         return TYPE_UNSIGNED_64INT;
+
     default:
         return 0; // No specific operand type or invalid instruction
     }
@@ -490,6 +506,30 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
     {
         fprintf(stream, " [empty]\n");
     }
+}
+
+static int handle_static(VirtualMachine *vm, Inst inst)
+{
+
+    switch (inst.type)
+    {
+    case INST_READ:
+
+        vm->stack[vm->stack_size - 1] = vm->static_memory[return_value_unsigned(vm->stack[vm->stack_size - 1])];
+        break;
+    case INST_WRITE:
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        vm->static_memory[return_value_unsigned(vm->stack[vm->stack_size - 2])] = vm->stack[vm->stack_size - 1];
+        vm->stack_size -= 2;
+        break;
+    }
+
+    vm->instruction_pointer++;
+    return TRAP_OK;
 }
 
 static int handle_swap(VirtualMachine *vm, Inst inst)
@@ -964,6 +1004,10 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
     case INST_NATIVE:
         return handle_native(vm, inst);
 
+    case INST_READ:
+    case INST_WRITE:
+        return handle_static(vm, inst);
+
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
     }
@@ -1029,6 +1073,13 @@ void vm_init(VirtualMachine *vm, char *source_code)
     }
     vm->natives_size = 0;
 
+    vm->static_memory = malloc(sizeof(double) * vm_memory_capacity);
+    if (!vm->static_memory)
+    {
+        fprintf(stderr, "ERROR: static memory allocation failed: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     vm_header_ header = vm_load_program_from_file(vm->program, source_code);
 
     vm->program_size = header.code_section_size;
@@ -1051,6 +1102,7 @@ void vm_internal_free(VirtualMachine *vm)
     free((void *)vm->program);
     free((void *)vm->natives);
     free((void *)vm->stack);
+    free((void *)vm->static_memory);
 }
 
 int vm_exec_program(VirtualMachine *vm, int64_t limit, bool debug)
