@@ -129,9 +129,15 @@ typedef enum
     INST_ASWAP,
     INST_RET,
     INST_CALL,
-    INST_READ,
-    INST_WRITE,
     INST_NATIVE,
+    INST_WRITE8,
+    INST_WRITE16,
+    INST_WRITE32,
+    INST_WRITE64,
+    INST_READ8,
+    INST_READ16,
+    INST_READ32,
+    INST_READ64,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
 
@@ -223,12 +229,12 @@ const char *get_inst_name(Inst_Type inst)
     {
     case INST_NOP:
         return "nop";
+    case INST_SPUSH:
+        return "spush";
     case INST_FPUSH:
         return "fpush";
     case INST_UPUSH:
         return "upush";
-    case INST_SPUSH:
-        return "spush";
     case INST_RDUP:
         return "rdup";
     case INST_ADUP:
@@ -285,20 +291,32 @@ const char *get_inst_name(Inst_Type inst)
         return "pop_at";
     case INST_POP:
         return "pop";
+    case INST_RSWAP:
+        return "rswap";
+    case INST_ASWAP:
+        return "aswap";
     case INST_RET:
         return "ret";
     case INST_CALL:
         return "call";
-    case INST_ASWAP:
-        return "aswap";
-    case INST_RSWAP:
-        return "rswap";
     case INST_NATIVE:
         return "native";
-    case INST_READ:
-        return "read";
-    case INST_WRITE:
-        return "write";
+    case INST_READ8:
+        return "read8";
+    case INST_READ16:
+        return "read16";
+    case INST_READ32:
+        return "read32";
+    case INST_READ64:
+        return "read64";
+    case INST_WRITE8:
+        return "write8";
+    case INST_WRITE16:
+        return "write16";
+    case INST_WRITE32:
+        return "write32";
+    case INST_WRITE64:
+        return "write64";
     default:
         return NULL; // Invalid instruction
     }
@@ -308,8 +326,6 @@ bool has_operand_function(Inst_Type inst)
 {
     switch (inst)
     {
-    case INST_NOP:
-        return 0;
     case INST_SPUSH:
         return 1;
     case INST_UPUSH:
@@ -320,60 +336,20 @@ bool has_operand_function(Inst_Type inst)
         return 1;
     case INST_RDUP:
         return 1;
-    case INST_SPLUS:
-        return 0;
-    case INST_UPLUS:
-        return 0;
-    case INST_FPLUS:
-        return 0;
-    case INST_SMINUS:
-        return 0;
-    case INST_UMINUS:
-        return 0;
-    case INST_FMINUS:
-        return 0;
-    case INST_SMULT:
-        return 0;
-    case INST_UMULT:
-        return 0;
-    case INST_FMULT:
-        return 0;
-    case INST_SDIV:
-        return 0;
-    case INST_UDIV:
-        return 0;
-    case INST_FDIV:
-        return 0;
     case INST_JMP:
         return 1;
-    case INST_HALT:
-        return 0;
     case INST_FJMP_IF:
         return 1;
     case INST_UJMP_IF:
         return 1;
-    case INST_EQ:
-        return 0;
     case INST_LSR:
         return 1;
     case INST_ASR:
         return 1;
     case INST_SL:
         return 1;
-    case INST_AND:
-        return 0;
-    case INST_OR:
-        return 0;
-    case INST_NOT:
-        return 0;
-    case INST_EMPTY:
-        return 0;
     case INST_POP_AT:
         return 1;
-    case INST_POP:
-        return 0;
-    case INST_RET:
-        return 0;
     case INST_CALL:
         return 1;
     case INST_RSWAP:
@@ -382,13 +358,9 @@ bool has_operand_function(Inst_Type inst)
         return 1;
     case INST_NATIVE:
         return 1;
-    case INST_READ:
-        return 0;
-    case INST_WRITE:
-        return 0;
-    default:
-        return -1; // Invalid instruction
     }
+
+    return 0;
 }
 
 uint8_t get_operand_type(Inst_Type inst)
@@ -518,28 +490,158 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
     }
 }
 
-/* static int handle_static(VirtualMachine *vm, Inst inst)
+static int handle_static(VirtualMachine *vm, Inst inst)
 {
     switch (inst.type)
     {
-    case INST_READ:
+    case INST_READ8:
+    {
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
 
-        vm->stack[vm->stack_size - 1] = vm->static_memory[vm->stack[vm->stack_size - 1]._as_u64];
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 1)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        vm->stack[vm->stack_size - 1]._as_u64 = *(uint8_t *)&vm->static_memory[addr];
         break;
-    case INST_WRITE:
+    }
+
+    case INST_READ16:
+    {
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 2)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        vm->stack[vm->stack_size - 1]._as_u64 = *(uint16_t *)&vm->static_memory[addr];
+        break;
+    }
+
+    case INST_READ32:
+    {
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 4)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        vm->stack[vm->stack_size - 1]._as_u64 = *(uint32_t *)&vm->static_memory[addr];
+        break;
+    }
+
+    case INST_READ64:
+    {
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 8)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        vm->stack[vm->stack_size - 1]._as_u64 = *(uint64_t *)&vm->static_memory[addr];
+        break;
+    }
+
+    case INST_WRITE8:
+    {
         if (vm->stack_size < 2)
         {
             return TRAP_STACK_UNDERFLOW;
         }
 
-        vm->static_memory[vm->stack[vm->stack_size - 2]._as_u64] = vm->stack[vm->stack_size - 1];
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 1)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        uint8_t value = vm->stack[vm->stack_size - 2]._as_u64;
+        *(uint8_t *)&vm->static_memory[addr] = value;
         vm->stack_size -= 2;
         break;
     }
 
+    case INST_WRITE16:
+    {
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 2)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        uint16_t value = vm->stack[vm->stack_size - 2]._as_u64;
+        *(uint16_t *)&vm->static_memory[addr] = value;
+        vm->stack_size -= 2;
+        break;
+    }
+
+    case INST_WRITE32:
+    {
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 4)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        uint32_t value = vm->stack[vm->stack_size - 2]._as_u64;
+        *(uint32_t *)&vm->static_memory[addr] = value;
+        vm->stack_size -= 2;
+        break;
+    }
+
+    case INST_WRITE64:
+    {
+        if (vm->stack_size < 2)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 8)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        uint64_t value = vm->stack[vm->stack_size - 2]._as_u64;
+        *(uint64_t *)&vm->static_memory[addr] = value;
+        vm->stack_size -= 2;
+        break;
+    }
+    }
+
     vm->instruction_pointer++;
     return TRAP_OK;
-} */
+}
 
 static int handle_swap(VirtualMachine *vm, Inst inst)
 {
@@ -871,36 +973,36 @@ static int handle_bitwise(VirtualMachine *vm, Inst inst)
         break;
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
-        /*    }
-       }
-       else if (!is_nan(vm->stack[vm->stack_size - 1]) && (inst.type == INST_NOT || !is_nan(vm->stack[vm->stack_size - 2])))
-       {
-           switch (inst.type)
-           {
-           case INST_AND:
-               result = a & b;
-               break;
-           case INST_OR:
-               result = a | b;
-               break;
-           case INST_NOT:
-               result = ~a;
-               break;
-           default:
-               return TRAP_ILLEGAL_INSTRUCTION;
-           }
-       } */
-        /* else
-        {
-            return TRAP_ILLEGAL_OPERATION;
-        } */
-
-        vm->stack[vm->stack_size - (inst.type == INST_NOT ? 1 : 2)]._as_u64 = result;
-        if (inst.type != INST_NOT)
-            vm->stack_size--;
-        vm->instruction_pointer++;
-        return TRAP_OK;
     }
+    /*    }
+   }
+   else if (!is_nan(vm->stack[vm->stack_size - 1]) && (inst.type == INST_NOT || !is_nan(vm->stack[vm->stack_size - 2])))
+   {
+       switch (inst.type)
+       {
+       case INST_AND:
+           result = a & b;
+           break;
+       case INST_OR:
+           result = a | b;
+           break;
+       case INST_NOT:
+           result = ~a;
+           break;
+       default:
+           return TRAP_ILLEGAL_INSTRUCTION;
+       }
+   } */
+    /* else
+    {
+        return TRAP_ILLEGAL_OPERATION;
+    } */
+
+    vm->stack[vm->stack_size - (inst.type == INST_NOT ? 1 : 2)]._as_u64 = result;
+    if (inst.type != INST_NOT)
+        vm->stack_size--;
+    vm->instruction_pointer++;
+    return TRAP_OK;
 }
 static int handle_empty(VirtualMachine *vm)
 {
@@ -1019,6 +1121,16 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
         case INST_WRITE:
             return handle_static(vm, inst); */
 
+    case INST_WRITE8:
+    case INST_WRITE16:
+    case INST_WRITE32:
+    case INST_WRITE64:
+    case INST_READ8:
+    case INST_READ16:
+    case INST_READ32:
+    case INST_READ64:
+        return handle_static(vm, inst);
+
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
     }
@@ -1084,7 +1196,7 @@ void vm_init(VirtualMachine *vm, char *source_code)
     }
     vm->natives_size = 0;
 
-    vm->static_memory = malloc(sizeof(Value) * vm_memory_capacity);
+    vm->static_memory = malloc(sizeof(uint8_t) * vm_memory_capacity);
     if (!vm->static_memory)
     {
         fprintf(stderr, "ERROR: static memory allocation failed: %s\n", strerror(errno));
