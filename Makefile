@@ -2,14 +2,14 @@ CFLAGS=-Wall -Wextra -std=c11 -pedantic -O3 -Wall -march=native -ffast-math -fun
 LIBS=
 
 nan_virtmach: src/nan_boxed/main.c
-	gcc $(CFLAGS) -o ./bin/virtmach src/main.c $(LIBS)
+	gcc $(CFLAGS) -o ./bin/virtmach src/nan_boxed/main.c $(LIBS)
 
 nan_devasm: src/nan_boxed/devasm.c 
-	gcc $(CFLAGS) -o ./bin/devasm src/devasm.c $(LIBS)
+	gcc $(CFLAGS) -o ./bin/devasm src/nan_boxed/devasm.c $(LIBS)
 
 nan_vpp: src/nan_boxed/vpp.c 
 
-	gcc $(CFLAGS) -o ./bin/vpp src/vpp.c $(LIBS)
+	gcc $(CFLAGS) -o ./bin/vpp src/nan_boxed/vpp.c $(LIBS)
 
 nan_clean:
 	rm -f ./bin/nanboxed/nan_virtmach ./bin/nanboxed/nan_devasm ./bin/nanboxed/nan_vpp
