@@ -9,7 +9,7 @@
 #endif
 
 #define _VM_IMPLEMENTATION
-#include "virt_mach.h"
+#include "./virt_mach.h"
 
 static Trap vm_alloc(VirtualMachine *vm)
 {
@@ -18,8 +18,8 @@ static Trap vm_alloc(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    uint64_t actual_value = (uint64_t)malloc(return_value_unsigned(vm->stack[vm->stack_size - 1]));
-    set_unsigned_64int(&vm->stack[vm->stack_size - 1], actual_value);
+    uint64_t actual_value = (uint64_t)malloc(vm->stack[vm->stack_size - 1]._as_u64);
+    vm->stack[vm->stack_size - 1]._as_s64 = actual_value;
 
     return TRAP_OK;
 }
@@ -31,7 +31,7 @@ static Trap vm_free(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    uint64_t ptr = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+    uint64_t ptr = vm->stack[vm->stack_size - 1]._as_u64;
     vm->stack_size--;
     free((void *)ptr);
 
@@ -45,7 +45,7 @@ static Trap vm_print_f64(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    double value = vm->stack[vm->stack_size - 1];
+    double value = vm->stack[vm->stack_size - 1]._as_f64;
     fprintf(stdout, "%lf\n", value);
 
     return TRAP_OK;
@@ -58,7 +58,7 @@ static Trap vm_print_u64(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    uint64_t value = return_value_unsigned(vm->stack[vm->stack_size - 1]);
+    uint64_t value = vm->stack[vm->stack_size - 1]._as_u64;
     fprintf(stdout, "%llu\n", value);
 
     return TRAP_OK;
@@ -71,7 +71,7 @@ static Trap vm_print_s64(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    uint64_t value = return_value_signed(vm->stack[vm->stack_size - 1]);
+    uint64_t value = vm->stack[vm->stack_size - 1]._as_s64;
     fprintf(stdout, "%lld\n", value);
 
     return TRAP_OK;

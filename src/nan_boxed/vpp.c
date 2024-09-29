@@ -6,8 +6,8 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
-#include "virt_mach.h"
-#include "String_View.h"
+#include "./virt_mach.h"
+#include "./String_View.h"
 
 #define VM_DEFINE_LIMIT 128
 #define MAX_PATH_LENGTH 1024

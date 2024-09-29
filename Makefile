@@ -1,15 +1,29 @@
 CFLAGS=-Wall -Wextra -std=c11 -pedantic -O3 -Wall -march=native -ffast-math -funroll-loops -ftree-vectorize -finline-functions -floop-nest-optimize -mavx2 -mfma -mfpmath=sse -flto -fno-math-errno -fno-signed-zeros -pg -g 
 LIBS=
 
-virtmach: src/main.c
+nan_virtmach: src/nan_boxed/main.c
 	gcc $(CFLAGS) -o ./bin/virtmach src/main.c $(LIBS)
 
-devasm: src/devasm.c 
+nan_devasm: src/nan_boxed/devasm.c 
 	gcc $(CFLAGS) -o ./bin/devasm src/devasm.c $(LIBS)
 
-vpp: src/vpp.c 
+nan_vpp: src/nan_boxed/vpp.c 
 
 	gcc $(CFLAGS) -o ./bin/vpp src/vpp.c $(LIBS)
 
+nan_clean:
+	rm -f ./bin/nanboxed/nan_virtmach ./bin/nanboxed/nan_devasm ./bin/nanboxed/nan_vpp
+
 clean:
-	rm -f ./bin/virtmach ./bin/devasm ./bin/vpp
+
+	rm -f ./bin/non_nanboxed/virtmach ./bin/non_nanboxed/devasm ./bin/non_nanboxed/vpp
+
+virtmach: src/non_nanboxed/main.c
+		gcc $(CFLAGS) -o ./bin/non_nanboxed/virtmach src/non_nanboxed/main.c $(LIBS)
+
+devasm: src/non_nanboxed/devasm.c
+		gcc $(CFLAGS) -o ./bin/non_nanboxed/devasm src/non_nanboxed/devasm.c $(LIBS)
+	
+vpp: src/non_nanboxed/vpp.c
+		gcc $(CFLAGS) -o ./bin/non_nanboxed/vpp src/non_nanboxed/vpp.c $(LIBS)
+

@@ -1,5 +1,5 @@
 #define _VM_IMPLEMENTATION
-#include "virt_mach.h"
+#include "./virt_mach.h"
 
 int main(int argc, char **argv)
 {
