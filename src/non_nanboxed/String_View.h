@@ -28,7 +28,12 @@ void sv_trim_left(String_View *line);
 void sv_trim_right(String_View *line);
 void sv_trim_side_comments(String_View *line);
 bool sv_eq(String_View a, String_View b);
-double sv_to_value(String_View *op);
+/* double sv_to_value(String_View *op); */
+bool is_negative(String_View value);
+bool is_fraction(String_View value);
+double sv_to_double(String_View *value);
+uint64_t sv_to_unsigned64(String_View *value);
+int64_t sv_to_signed64(String_View *value);
 
 #ifdef _SV_IMPLEMENTATION
 
