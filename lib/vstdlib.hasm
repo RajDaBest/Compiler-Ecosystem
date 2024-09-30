@@ -3,3 +3,5 @@
 %define print_f64 2
 %define print_s64 3
 %define print_u64 4
+%define dump_static 5
+%define print_string 6

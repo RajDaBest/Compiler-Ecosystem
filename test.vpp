@@ -4,6 +4,7 @@ fool: .byte -12
 green: .byte 16 
 hell: .quadword -123 
 lets: .double -19.4 
+strings: .string hello 
 .text 
 start: upush 10 
 upush 12 
@@ -20,4 +21,6 @@ native 3
 upush lets 
 read64 
 native 2 
+upush strings 
+native 6 
 halt 

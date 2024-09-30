@@ -11,6 +11,20 @@
 #define _VM_IMPLEMENTATION
 #include "./virt_mach.h"
 
+static Trap vm_print_string(VirtualMachine *vm)
+{
+    if (vm->stack_size < 1)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+
+    printf("%s\n", &vm->static_memory[addr]);
+
+    return TRAP_OK;
+}
+
 static Trap vm_alloc(VirtualMachine *vm)
 {
     if (vm->stack_size < 1)
@@ -372,6 +386,7 @@ int main(int argc, char **argv)
         vm_native_push(&vm, vm_print_s64);
         vm_native_push(&vm, vm_print_u64);
         vm_native_push(&vm, vm_dump_static);
+        vm_native_push(&vm, vm_print_string);
         vm_exec_program(&vm, limit, debug);
         vm_internal_free(&vm);
 

@@ -139,7 +139,7 @@ typedef enum
     INST_ZEREAD8, // zero extend the memory value into the 64-bit stack
     INST_ZEREAD16,
     INST_ZEREAD32,
-    INST_READ64, 
+    INST_READ64,
     INST_SEREAD8, // sign extend the memory value into the 64-bit stack
     INST_SEREAD16,
     INST_SEREAD32,
@@ -1711,6 +1711,11 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
 
     if (sv_eq(data_type, cstr_as_sv(".byte")))
     {
+        if (*data_section_offset >= vm_default_memory_size - sizeof(int8_t))
+        {
+            fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .byte %.*s\n", line_no, (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
         if (is_neg)
         {
             int8_t value = (int8_t)sv_to_signed64(&line);
@@ -1725,6 +1730,11 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     }
     else if (sv_eq(data_type, cstr_as_sv(".word")))
     {
+        if (*data_section_offset >= vm_default_memory_size - sizeof(int16_t))
+        {
+            fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .word %.*s\n", line_no, (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
         if (is_neg)
         {
             int16_t value = (int16_t)sv_to_signed64(&line);
@@ -1739,6 +1749,11 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     }
     else if (sv_eq(data_type, cstr_as_sv(".doubleword")))
     {
+        if (*data_section_offset >= vm_default_memory_size - sizeof(int32_t))
+        {
+            fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .doubleword %.*s\n", line_no, (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
         if (is_neg)
         {
             int32_t value = (int32_t)sv_to_signed64(&line);
@@ -1753,6 +1768,11 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     }
     else if (sv_eq(data_type, cstr_as_sv(".quadword")))
     {
+        if (*data_section_offset >= vm_default_memory_size - sizeof(int64_t))
+        {
+            fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .quadword %.*s\n", line_no, (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
         if (is_neg)
         {
             int64_t value = sv_to_signed64(&line);
@@ -1767,9 +1787,31 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     }
     else if (sv_eq(data_type, cstr_as_sv(".double")))
     {
+        if (*data_section_offset >= vm_default_memory_size - sizeof(double))
+        {
+            fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .double %.*s\n", line_no, (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
         double value = sv_to_double(&line);
         *(double *)&data_section[*data_section_offset] = value;
         *data_section_offset += sizeof(double);
+    }
+    else if (sv_eq(data_type, cstr_as_sv(".string")))
+    {
+        if (*data_section_offset >= vm_default_memory_size - line.count - 1)
+        {
+            fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .string %.*s\n", line_no, (int)line.count, line.data);
+            exit(EXIT_FAILURE);
+        }
+
+        for (size_t i = 0; i < line.count; i++)
+        {
+            data_section[*data_section_offset] = (uint8_t)line.data[i];
+            *data_section_offset += 1;
+        }
+
+        data_section[*data_section_offset] = '\0';
+        *data_section_offset += 1;
     }
     else
     {
