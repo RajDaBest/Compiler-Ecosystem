@@ -1,0 +1,19 @@
+.data 
+int: .ubyte 10 
+fool: .ubyte 12 
+green: .ubyte 16 
+hell: .uword 123 
+.text 
+start: upush 10 
+upush 12 
+native 4 
+upush int 
+read8 
+native 4 
+upush fool 
+read8 
+native 4 
+upush hell 
+read16 
+native 4 
+halt 

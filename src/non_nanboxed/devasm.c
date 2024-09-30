@@ -14,11 +14,18 @@ int main(int argc, char **argv)
 
 #ifdef _WIN32
     Inst program[VM_PROGRAM_CAPACITY];
+    uint8_t data_section[VM_DEFAULT_MEMORY_SIZE];
 #else
     Inst program[vm_program_capacity];
+    uint8_t data_section[vm_default_memory_size];
 #endif
-    vm_header_ header = vm_load_program_from_file(program, input);
+    vm_header_ header = vm_load_program_from_file(program, data_section, input);
     size_t program_size = header.code_section_size;
+
+     for (size_t i = 0; i < header.data_section_size; i++)
+    {
+        printf("%d\n", data_section[i]);
+    } 
 
     for (size_t i = 0; i < program_size; i++)
     {

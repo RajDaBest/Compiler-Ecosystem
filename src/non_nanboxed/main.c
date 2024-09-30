@@ -18,8 +18,20 @@ static Trap vm_alloc(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    uint64_t actual_value = (uint64_t)malloc(vm->stack[vm->stack_size - 1]._as_u64);
-    vm->stack[vm->stack_size - 1]._as_s64 = actual_value;
+    uint64_t size = vm->stack[vm->stack_size - 1]._as_u64;
+
+    if (size >= vm_memory_capacity) // vm_memory_capacity <= UINT64_MAX
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    if (size >= vm_memory_capacity - vm->static_break)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    vm->static_break += size;
+    vm->stack_size--;
 
     return TRAP_OK;
 }
@@ -31,10 +43,16 @@ static Trap vm_free(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    uint64_t ptr = vm->stack[vm->stack_size - 1]._as_u64;
-    vm->stack_size--;
-    free((void *)ptr);
+    uint64_t size = vm->stack[vm->stack_size - 1]._as_u64;
 
+    if (size >= vm->static_break) // vm->static_break < vm_memory_capacity
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    vm->static_break -= size;
+
+    vm->stack_size--;
     return TRAP_OK;
 }
 
@@ -77,9 +95,36 @@ static Trap vm_print_s64(VirtualMachine *vm)
     return TRAP_OK;
 }
 
+static Trap vm_dump_static(VirtualMachine *vm)
+{
+    if (vm->stack_size < 2)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    uint64_t addr = vm->stack[vm->stack_size - 2]._as_u64;
+    uint64_t count = vm->stack[vm->stack_size - 1]._as_u64;
+
+    if (addr >= vm_memory_capacity) // vm_memory_capacity less than UINT64_MAX
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    if (count > vm_memory_capacity - addr)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    for (size_t i = 0; i < count; i++)
+    {
+        printf("signed: %d, unsigned: %u\n", (unsigned int)vm->static_memory[addr + i], (int)vm->static_memory[addr + i]);
+    }
+
+    return TRAP_OK;
+}
 void print_usage_and_exit()
 {
-    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--lib <library-path>] [--stack-size <size>] [--program-capacity <size>] [--limit <n>] [--save-vpp [filename]] [--debug] [--vpp] <input> [output]\n");
+    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--lib <library-path>] [--stack-size <size>] [--program-capacity <size>] [--static-size <size>] [--limit <n>] [--save-vpp [filename]] [--debug] [--vpp] <input> [output]\n");
     exit(EXIT_FAILURE);
 }
 
@@ -158,6 +203,15 @@ int main(int argc, char **argv)
                 print_usage_and_exit();
             }
             limit = atoll(argv[++i]);
+        }
+        else if (strcmp(argv[i], "--static-size") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "ERROR: Missing value for --static-size.\n");
+                print_usage_and_exit();
+            }
+            vm_default_memory_size = parse_non_negative_int(argv[++i]);
         }
         else if (strcmp(argv[i], "--save-vpp") == 0)
         {
@@ -266,17 +320,29 @@ int main(int argc, char **argv)
         // Continue with assembly if action is "asm"
         String_View source = slurp_file(vpp_filename);
 
+        assert(vm_program_capacity <= UINT64_MAX);
+        assert(vm_memory_capacity <= UINT64_MAX);
+        assert(vm_stack_capacity <= UINT64_MAX);
+        assert(vm_default_memory_size < vm_memory_capacity);
+
         label_init();
+
 #ifdef _WIN32
         Inst program[VM_PROGRAM_CAPACITY]; // clang does not fucking support run-time allocation of data segment memory
+        uint8_t data_section[VM_DEFAULT_MEMORY_SIZE]
 #else
         Inst program[vm_program_capacity];
+        uint8_t data_section[vm_default_memory_size];
 #endif
-        vm_header_ header = vm_translate_source(source, program, vm_program_capacity);
+
+            vm_header_ header = vm_translate_source(source, program, data_section);
         label_free();
         free((void *)source.data);
-        vm_save_program_to_file(program, header, output);
-
+        vm_save_program_to_file(program, data_section, header, output);
+        /* for (size_t i = 0; i < header.data_section_size; i++)
+        {
+            printf("%d\n", data_section[i]);
+        } */
         if (!save_vpp)
         {
             char rm_file[200];
@@ -305,6 +371,7 @@ int main(int argc, char **argv)
         vm_native_push(&vm, vm_print_f64);
         vm_native_push(&vm, vm_print_s64);
         vm_native_push(&vm, vm_print_u64);
+        vm_native_push(&vm, vm_dump_static);
         vm_exec_program(&vm, limit, debug);
         vm_internal_free(&vm);
 

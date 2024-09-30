@@ -18,6 +18,7 @@
 #define EPSILON 1e-9
 #define VM_STACK_CAPACITY 1024
 #define VM_MEMORY_CAPACITY 640 * 1024
+#define VM_DEFAULT_MEMORY_SIZE 1024
 #define VM_PROGRAM_CAPACITY 1024
 #define VM_LABEL_CAPACITY 128
 #define VM_EQU_CAPACITY 128
@@ -48,6 +49,7 @@ size_t label_capacity = VM_LABEL_CAPACITY;
 size_t equ_label_capacity = VM_EQU_CAPACITY;
 size_t natives_capacity = VM_NATIVE_CAPACITY;
 size_t line_no = 0;
+size_t vm_default_memory_size = VM_DEFAULT_MEMORY_SIZE;
 bool compilation_successful = true;
 
 typedef union
@@ -167,6 +169,7 @@ typedef struct VirtualMachine // structure defining the actual virtual machine
     size_t start_label_index;
 
     uint8_t *static_memory;
+    uint64_t static_break;
 
     int halt;
 } VirtualMachine;
@@ -178,6 +181,7 @@ typedef struct
     int64_t start_location;
     size_t code_section_size;
     size_t data_section_offset; // not using currently
+    size_t data_section_size;
 } vm_header_;
 
 void push_to_not_resolved_yet(String_View label, size_t inst_location);
@@ -212,13 +216,18 @@ void vm_init(VirtualMachine *vm, char *source_code);
 void vm_internal_free(VirtualMachine *vm);
 int vm_exec_program(VirtualMachine *vm, int64_t limit, bool debug);
 void vm_push_inst(VirtualMachine *vm, Inst *inst);
-void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_path);
-vm_header_ vm_load_program_from_file(Inst *program, const char *file_path);
+void vm_save_program_to_file(Inst *program, uint8_t *data_section, vm_header_ header, const char *file_path);
+vm_header_ vm_load_program_from_file(Inst *program, uint8_t *data_section, const char *file_path);
 Inst vm_translate_line(String_View line, size_t current_program_counter);
 static void process_label(String_View label, size_t program_size);
 static void resolve_labels(Inst *program);
 static void check_unresolved_labels();
-vm_header_ vm_translate_source(String_View source, Inst *program, size_t program_capacity);
+static void process_section_directive(String_View section, bool *is_code);
+static void process_code_line(String_View line, Inst *program, size_t *code_section_offset);
+static void process_data_line(String_View line, uint8_t *data_section, size_t *data_section_offset);
+static bool check_compilation_status(Inst *program, size_t code_section_offset);
+static vm_header_ create_vm_header(size_t code_section_offset, size_t data_section_offset);
+vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_section);
 String_View slurp_file(const char *file_path);
 
 #ifdef _VM_IMPLEMENTATION
@@ -1203,7 +1212,9 @@ void vm_init(VirtualMachine *vm, char *source_code)
         exit(EXIT_FAILURE);
     }
 
-    vm_header_ header = vm_load_program_from_file(vm->program, source_code);
+    vm->static_break = vm_default_memory_size;
+
+    vm_header_ header = vm_load_program_from_file(vm->program, vm->static_memory, source_code);
 
     vm->program_size = header.code_section_size;
     vm->has_start = header.has_start;
@@ -1274,7 +1285,7 @@ void vm_push_inst(VirtualMachine *vm, Inst *inst)
     vm->program[vm->program_size++ - 1] = *inst;
 }
 
-void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_path)
+void vm_save_program_to_file(Inst *program, uint8_t *data_section, vm_header_ header, const char *file_path)
 {
     FILE *f = fopen(file_path, "wb");
     if (!f)
@@ -1284,6 +1295,14 @@ void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_
     }
 
     fwrite(&header, sizeof(header), 1, f);
+    if (ferror(f)) // did some error occur due to the last stdio function call on f?
+    {
+        fprintf(stderr, "ERROR: Could not write to file '%s': %s\n", file_path, strerror(errno));
+        fclose(f);
+        exit(EXIT_FAILURE);
+    }
+
+    fwrite(data_section, sizeof(uint8_t), header.data_section_size, f);
     if (ferror(f)) // did some error occur due to the last stdio function call on f?
     {
         fprintf(stderr, "ERROR: Could not write to file '%s': %s\n", file_path, strerror(errno));
@@ -1302,7 +1321,7 @@ void vm_save_program_to_file(Inst *program, vm_header_ header, const char *file_
     fclose(f);
 }
 
-vm_header_ vm_load_program_from_file(Inst *program, const char *file_path)
+vm_header_ vm_load_program_from_file(Inst *program, uint8_t *data_section, const char *file_path)
 {
     FILE *f = fopen(file_path, "rb");
     if (!f)
@@ -1319,6 +1338,28 @@ vm_header_ vm_load_program_from_file(Inst *program, const char *file_path)
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    assert(header.data_section_size <= vm_default_memory_size * sizeof(uint8_t));
+
+    if (fseek(f, header.data_section_offset, SEEK_SET))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    ret_val = fread(data_section, sizeof(uint8_t), header.data_section_size, f);
+    if (ferror(f))
+    {
+        fclose(f);
+        fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    /*     for (size_t i = 0; i < header.data_section_size; i++)
+        {
+            printf("%d\n", data_section[i]);
+        } */
 
     assert(header.code_section_size <= vm_program_capacity * sizeof(Inst));
 
@@ -1337,9 +1378,7 @@ vm_header_ vm_load_program_from_file(Inst *program, const char *file_path)
         exit(EXIT_FAILURE);
     }
 
-    assert(header.code_section_size <= vm_program_capacity * sizeof(Inst));
     fclose(f);
-
     return header;
 }
 
@@ -1372,16 +1411,16 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
             double operand = sv_to_value(&line);
             if (str_errno == FAILURE)
             {
-                if (i == INST_JMP || i == INST_UJMP_IF || i == INST_FJMP_IF || i == INST_CALL)
-                {
-                    push_to_not_resolved_yet(line, current_program_counter);
-                    return (Inst){.type = i, .operand._as_u64 = 0};
-                }
+                /* if (i == INST_JMP || i == INST_UJMP_IF || i == INST_FJMP_IF || i == INST_CALL)
+                { */
+                push_to_not_resolved_yet(line, current_program_counter);
+                return (Inst){.type = i, .operand._as_u64 = 0};
+                /* } */
 
-                fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n",
+                /* fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n",
                         line_no, (int)line.count, line.data);
                 compilation_successful = false;
-                return (Inst){0};
+                return (Inst){0}; */
             }
             else if (str_errno == OPERAND_OVERFLOW)
             {
@@ -1482,13 +1521,16 @@ int64_t check_start()
     return -1;
 }
 
-vm_header_ vm_translate_source(String_View source, Inst *program, size_t program_capacity)
+vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_section)
 {
-    size_t program_size = 0;
+    size_t code_section_offset = 0;
+    size_t data_section_offset = 0;
+    bool is_code = true;
+    size_t line_no = 0;
 
     while (source.count > 0)
     {
-        if (program_size >= program_capacity)
+        if (code_section_offset >= vm_program_capacity)
         {
             fprintf(stderr, "Program Too Big\n");
             compilation_successful = false;
@@ -1504,51 +1546,163 @@ vm_header_ vm_translate_source(String_View source, Inst *program, size_t program
         if (line.count == 0)
             continue; // Ignore empty lines
 
-        // Check for a label
-        String_View label = sv_chop_by_delim(&line, ':');
-        if (*(line.data - 1) == ':')
-        { // If there's a label
-            process_label(label, program_size);
-            if (line.count > 0)
-            { // instruction remaining after the label
-                sv_trim_left(&line);
-                program[program_size] = vm_translate_line(line, program_size);
-                program_size++;
-            }
+        if (*line.data == '.')
+        {
+            process_section_directive(line, &is_code);
+        }
+        else if (is_code)
+        {
+            process_code_line(line, program, &code_section_offset);
         }
         else
         {
-            program[program_size] = vm_translate_line(label, program_size);
-            program_size++;
-            continue;
+            process_data_line(line, data_section, &data_section_offset);
         }
     }
 
-    if (program_size > 0 && program[program_size - 1].type != INST_HALT)
-    {
-        fprintf(stderr, "ERROR: halt required to mark the code end\n");
-        compilation_successful = false;
-    }
+    compilation_successful = check_compilation_status(program, code_section_offset);
 
     if (compilation_successful)
     {
         resolve_labels(program);
         check_unresolved_labels();
     }
-
-    if (!compilation_successful)
+    else
     {
         fprintf(stderr, "Compilation Failed\n");
     }
 
-    bool has_start = true;
+    return create_vm_header(code_section_offset, data_section_offset);
+}
 
-    int64_t ret_val = check_start();
-    if (ret_val == -1)
+static void process_section_directive(String_View section, bool *is_code)
+{
+    String_View directive = sv_chop_by_delim(&section, ' ');
+    if (sv_eq(directive, cstr_as_sv(".text")))
+    {
+        *is_code = true;
+    }
+    else if (sv_eq(directive, cstr_as_sv(".data")))
+    {
+        *is_code = false;
+    }
+    else
+    {
+        fprintf(stderr, "ERROR: invalid section type '%.*s'\n", (int)directive.count, directive.data);
+        compilation_successful = false;
+    }
+}
+
+static void process_code_line(String_View line, Inst *program, size_t *code_section_offset)
+{
+    String_View label = sv_chop_by_delim(&line, ':');
+    if (*(line.data - 1) == ':')
+    { // If there's a label
+        process_label(label, *code_section_offset);
+        sv_trim_left(&line);
+        if (line.count > 0)
+        { // instruction remaining after the label
+            program[*code_section_offset] = vm_translate_line(line, *code_section_offset);
+            (*code_section_offset)++;
+        }
+    }
+    else
+    {
+        program[*code_section_offset] = vm_translate_line(label, *code_section_offset);
+        (*code_section_offset)++;
+    }
+}
+
+static void process_data_line(String_View line, uint8_t *data_section, size_t *data_section_offset)
+{
+    String_View label = sv_chop_by_delim(&line, ':');
+    if (*(line.data - 1) == ':')
+    {
+        process_label(label, *data_section_offset);
+    }
+    else
+    {
+        line.count = label.count; // Reset line if no label found
+        line.data = label.data;
+    }
+
+    sv_trim_left(&line);
+    String_View data_type = sv_chop_by_delim(&line, ' ');
+    sv_trim_left(&line);
+
+    if (sv_eq(data_type, cstr_as_sv(".sbyte")))
+    {
+        int8_t value = (int8_t)sv_to_value(&line);
+        data_section[(*data_section_offset)++] = *(uint8_t *)&value;
+    }
+    else if (sv_eq(data_type, cstr_as_sv(".sword")))
+    {
+        int16_t value = (int16_t)sv_to_value(&line);
+        *(int16_t *)&data_section[*data_section_offset] = value;
+        *data_section_offset += sizeof(int16_t);
+    }
+    else if (sv_eq(data_type, cstr_as_sv(".sdoubleword")))
+    {
+        int32_t value = (int32_t)sv_to_value(&line);
+        *(int32_t *)&data_section[*data_section_offset] = value;
+        *data_section_offset += sizeof(int32_t);
+    }
+    else if (sv_eq(data_type, cstr_as_sv(".ubyte")))
+    {
+        uint8_t value = (uint8_t)sv_to_value(&line);
+        data_section[(*data_section_offset)++] = *(uint8_t *)&value;
+    }
+    else if (sv_eq(data_type, cstr_as_sv(".uword")))
+    {
+        uint16_t value = (uint16_t)sv_to_value(&line);
+        *(uint16_t *)&data_section[*data_section_offset] = value;
+        *data_section_offset += sizeof(uint16_t);
+    }
+    else if (sv_eq(data_type, cstr_as_sv(".udoubleword")))
+    {
+        uint32_t value = (uint32_t)sv_to_value(&line);
+        *(uint32_t *)&data_section[*data_section_offset] = value;
+        *data_section_offset += sizeof(uint32_t);
+    }
+    else if (sv_eq(data_type, cstr_as_sv(".double")))
+    {
+        double value = sv_to_value(&line);
+        *(double *)&data_section[*data_section_offset] = value;
+        *data_section_offset += sizeof(double);
+    }
+    else
+    {
+        fprintf(stderr, "ERROR: invalid data type '%.*s'\n", (int)data_type.count, data_type.data);
+        compilation_successful = false;
+    }
+}
+
+static bool check_compilation_status(Inst *program, size_t code_section_offset)
+{
+    if (code_section_offset > 0 && program[code_section_offset - 1].type != INST_HALT)
+    {
+        fprintf(stderr, "ERROR: halt required to mark the code end\n");
+        return false;
+    }
+    return true;
+}
+
+static vm_header_ create_vm_header(size_t code_section_offset, size_t data_section_offset)
+{
+    bool has_start = true;
+    int64_t start_location = check_start();
+    if (start_location == -1)
     {
         has_start = false;
     }
-    return (vm_header_){.code_section_size = program_size, .has_start = has_start, .data_section_offset = 0, .code_section_offset = sizeof(vm_header_), .start_location = ret_val};
+
+    return (vm_header_){
+        .code_section_size = code_section_offset,
+        .has_start = has_start,
+        .data_section_offset = sizeof(vm_header_),
+        .code_section_offset = sizeof(vm_header_) + sizeof(uint8_t) * data_section_offset,
+        .start_location = start_location,
+        .data_section_size = data_section_offset};
 }
 
 String_View slurp_file(const char *file_path)
