@@ -110,8 +110,8 @@ bool sv_eq(String_View a, String_View b)
     return true;
 }
 
-bool is_fraction = false;
-bool is_negative = false;
+/* bool is_fraction = false;
+bool is_negative = false; */
 /*
 bool is_integer_register = false;
 bool is_floating_point_register = false;
@@ -170,7 +170,7 @@ size_t sv_to_reg(String_View *op)
     return num;
 } */
 
-double sv_to_value(String_View *op)
+/* double sv_to_value(String_View *op)
 
 {
     double num = 0;
@@ -235,6 +235,188 @@ double sv_to_value(String_View *op)
 
     double result = num + fraction_part;
     return is_negative ? -result : result; // Apply the negative sign if needed
+}
+ */
+
+bool is_negative(String_View value)
+{
+    return (value.data[0] == '-');
+}
+
+bool is_fraction(String_View value)
+{
+    for (size_t i = 0; i < value.count; i++)
+    {
+        if (value.data[i] == '.')
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+double sv_to_double(String_View *value)
+{
+    double num = 0;
+    double fraction_part = 0;
+    bool is_neg = false;
+    bool in_fraction = false;
+    double divisor = 1;
+    str_errno = SUCCESS; // Reset the error flag before processing
+
+    for (size_t i = 0; i < value->count; i++)
+    {
+        char ch = value->data[i];
+
+        // Check for negative sign
+        if (ch == '-')
+        {
+            if (i > 0) // Negative sign should only be at the beginning
+            {
+                str_errno = FAILURE;
+                return -1;
+            }
+            is_neg = true;
+            continue;
+        }
+
+        // Check for positive sign (optional)
+        if (ch == '+')
+        {
+            if (i > 0) // Positive sign should only be at the beginning
+            {
+                str_errno = FAILURE;
+                return -1;
+            }
+            continue;
+        }
+
+        // Check for decimal point
+        if (ch == '.')
+        {
+            if (in_fraction) // Multiple decimal points are not allowed
+            {
+                str_errno = FAILURE;
+                return -1;
+            }
+            in_fraction = true;
+            continue;
+        }
+
+        int dig = ch - '0';
+        if (dig < 0 || dig > 9)
+        {
+            str_errno = FAILURE; // Set error if non-digit is encountered
+            return -1;
+        }
+
+        if (in_fraction)
+        {
+            divisor *= 10;
+            fraction_part += dig / divisor;
+        }
+        else
+        {
+            num = num * 10 + dig; // Accumulate integer part
+        }
+    }
+
+    double result = num + fraction_part;
+    return is_neg ? -result : result; // Apply the negative sign if needed
+}
+
+uint64_t sv_to_unsigned64(String_View *value)
+{
+    str_errno = SUCCESS;
+    uint64_t num = 0;
+
+    for (size_t i = 0; i < value->count; i++)
+    {
+        char ch = value->data[i];
+
+        // Check for positive sign (optional)
+        if (ch == '+')
+        {
+            if (i > 0) // Positive sign should only be at the beginning
+            {
+                str_errno = FAILURE;
+                return 0; // Return 0 in case of failure for unsigned
+            }
+            continue;
+        }
+
+        int dig = ch - '0';
+        if (dig < 0 || dig > 9)
+        {
+            str_errno = FAILURE; // Set error if non-digit is encountered
+            return 0;            // Return 0 in case of failure for unsigned
+        }
+
+        // Check for overflow before performing the multiplication
+        if (num > (UINT64_MAX - dig) / 10)
+        {
+            str_errno = FAILURE; // Overflow occurred
+            return 0;
+        }
+
+        num = num * 10 + dig;
+    }
+
+    return num;
+}
+
+int64_t sv_to_signed64(String_View *value)
+{
+    str_errno = SUCCESS;
+    bool is_neg = false;
+    int64_t num = 0;
+
+    for (size_t i = 0; i < value->count; i++)
+    {
+        char ch = value->data[i];
+
+        // Check for positive sign (optional)
+        if (ch == '+')
+        {
+            if (i > 0) // Positive sign should only be at the beginning
+            {
+                str_errno = FAILURE;
+                return 0; // Return 0 in case of failure
+            }
+            continue;
+        }
+
+        // Check for negative sign
+        if (ch == '-')
+        {
+            if (i > 0) // Negative sign should only be at the beginning
+            {
+                str_errno = FAILURE;
+                return 0; // Return 0 in case of failure
+            }
+            is_neg = true;
+            continue;
+        }
+
+        int dig = ch - '0';
+        if (dig < 0 || dig > 9)
+        {
+            str_errno = FAILURE; // Set error if non-digit is encountered
+            return 0;            // Return 0 in case of failure
+        }
+
+        // Check for overflow before performing the multiplication
+        if (num > (INT64_MAX - dig) / 10)
+        {
+            str_errno = FAILURE; // Overflow occurred
+            return 0;
+        }
+
+        num = num * 10 + dig;
+    }
+
+    return is_neg ? -num : num;
 }
 
 #endif // _SV_IMPLEMENTATION

@@ -132,14 +132,17 @@ typedef enum
     INST_RET,
     INST_CALL,
     INST_NATIVE,
-    INST_WRITE8,
+    INST_WRITE8, // write the raw bytes on the stack onto the memory locations
     INST_WRITE16,
     INST_WRITE32,
     INST_WRITE64,
-    INST_READ8,
-    INST_READ16,
-    INST_READ32,
-    INST_READ64,
+    INST_ZEREAD8, // zero extend the memory value into the 64-bit stack
+    INST_ZEREAD16,
+    INST_ZEREAD32,
+    INST_READ64, 
+    INST_SEREAD8, // sign extend the memory value into the 64-bit stack
+    INST_SEREAD16,
+    INST_SEREAD32,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
 
@@ -310,14 +313,20 @@ const char *get_inst_name(Inst_Type inst)
         return "call";
     case INST_NATIVE:
         return "native";
-    case INST_READ8:
-        return "read8";
-    case INST_READ16:
-        return "read16";
-    case INST_READ32:
-        return "read32";
+    case INST_ZEREAD8:
+        return "zeread8";
+    case INST_ZEREAD16:
+        return "zeread16";
+    case INST_ZEREAD32:
+        return "zeread32";
     case INST_READ64:
         return "read64";
+    case INST_SEREAD8:
+        return "seread8";
+    case INST_SEREAD16:
+        return "seread16";
+    case INST_SEREAD32:
+        return "seread32";
     case INST_WRITE8:
         return "write8";
     case INST_WRITE16:
@@ -503,7 +512,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
 {
     switch (inst.type)
     {
-    case INST_READ8:
+    case INST_ZEREAD8:
     {
         if (vm->stack_size < 1)
         {
@@ -520,7 +529,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_READ16:
+    case INST_ZEREAD16:
     {
         if (vm->stack_size < 1)
         {
@@ -537,7 +546,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_READ32:
+    case INST_ZEREAD32:
     {
         if (vm->stack_size < 1)
         {
@@ -568,6 +577,57 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         }
 
         vm->stack[vm->stack_size - 1]._as_u64 = *(uint64_t *)&vm->static_memory[addr];
+        break;
+    }
+
+    case INST_SEREAD8:
+    {
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 1)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        vm->stack[vm->stack_size - 1]._as_s64 = *(int8_t *)&vm->static_memory[addr];
+        break;
+    }
+
+    case INST_SEREAD16:
+    {
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 2)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        vm->stack[vm->stack_size - 1]._as_s64 = *(int16_t *)&vm->static_memory[addr];
+        break;
+    }
+
+    case INST_SEREAD32:
+    {
+        if (vm->stack_size < 1)
+        {
+            return TRAP_STACK_UNDERFLOW;
+        }
+
+        uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
+        if (addr >= vm_memory_capacity - 4)
+        {
+            return TRAP_ILLEGAL_MEMORY_ACCESS;
+        }
+
+        vm->stack[vm->stack_size - 1]._as_s64 = *(int32_t *)&vm->static_memory[addr];
         break;
     }
 
@@ -1134,10 +1194,13 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
     case INST_WRITE16:
     case INST_WRITE32:
     case INST_WRITE64:
-    case INST_READ8:
-    case INST_READ16:
-    case INST_READ32:
+    case INST_SEREAD8:
+    case INST_SEREAD16:
+    case INST_SEREAD32:
     case INST_READ64:
+    case INST_ZEREAD8:
+    case INST_ZEREAD16:
+    case INST_ZEREAD32:
         return handle_static(vm, inst);
 
     default:
@@ -1385,13 +1448,10 @@ vm_header_ vm_load_program_from_file(Inst *program, uint8_t *data_section, const
 Inst vm_translate_line(String_View line, size_t current_program_counter)
 {
     String_View inst_name = sv_chop_by_delim(&line, ' ');
-
     sv_trim_left(&line);
-    sv_trim_right(&line);
-
     bool has_operand_value = line.count > 0;
 
-    for (size_t i = 1; i < (size_t)INST_COUNT; i++) // run uptil the second last instruction in the enum since it's actually the last valid defined instruction
+    for (size_t i = 1; i < (size_t)INST_COUNT; i++)
     {
         if (sv_eq(inst_name, cstr_as_sv(get_inst_name(i))))
         {
@@ -1408,19 +1468,33 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
                 return (Inst){.type = i};
             }
 
-            double operand = sv_to_value(&line);
+            union
+            {
+                double f64;
+                int64_t s64;
+                uint64_t u64;
+            } operand = {0};
+
+            bool is_frac = is_fraction(line);
+            bool is_neg = is_negative(line);
+
+            if (is_frac)
+            {
+                operand.f64 = sv_to_double(&line);
+            }
+            else if (is_neg)
+            {
+                operand.s64 = sv_to_signed64(&line);
+            }
+            else
+            {
+                operand.u64 = sv_to_unsigned64(&line);
+            }
+
             if (str_errno == FAILURE)
             {
-                /* if (i == INST_JMP || i == INST_UJMP_IF || i == INST_FJMP_IF || i == INST_CALL)
-                { */
                 push_to_not_resolved_yet(line, current_program_counter);
                 return (Inst){.type = i, .operand._as_u64 = 0};
-                /* } */
-
-                /* fprintf(stderr, "Line Number %zu -> ERROR: %.*s is not a valid value\n",
-                        line_no, (int)line.count, line.data);
-                compilation_successful = false;
-                return (Inst){0}; */
             }
             else if (str_errno == OPERAND_OVERFLOW)
             {
@@ -1431,14 +1505,12 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
                 return (Inst){0};
             }
 
-            if (get_operand_type(i) == TYPE_SIGNED_64INT)
+            switch (get_operand_type(i))
             {
-                operand = (int64_t)operand;
-                return (Inst){.type = i, .operand._as_s64 = operand};
-            }
-            else if (get_operand_type(i) == TYPE_UNSIGNED_64INT)
-            {
-                if (is_fraction || is_negative)
+            case TYPE_SIGNED_64INT:
+                return (Inst){.type = i, .operand._as_s64 = operand.s64};
+            case TYPE_UNSIGNED_64INT:
+                if (is_frac || is_neg)
                 {
                     fprintf(stderr, "Line Number %zu -> ERROR: illegal operand value for %s instruction: %.*s\n"
                                     "Must be an unsigned integral value\n",
@@ -1446,11 +1518,15 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
                     compilation_successful = false;
                     return (Inst){0};
                 }
-                operand = (uint64_t)operand;
-                return (Inst){.type = i, .operand._as_u64 = operand};
+                return (Inst){.type = i, .operand._as_u64 = operand.u64};
+            case TYPE_DOUBLE:
+                return (Inst){.type = i, .operand._as_f64 = operand.f64};
+            default:
+                fprintf(stderr, "Line Number %zu -> ERROR: unknown operand type for instruction %s\n",
+                        line_no, get_inst_name(i));
+                compilation_successful = false;
+                return (Inst){0};
             }
-
-            return (Inst){.type = i, .operand._as_f64 = operand};
         }
     }
 
@@ -1619,6 +1695,7 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     if (*(line.data - 1) == ':')
     {
         process_label(label, *data_section_offset);
+        sv_trim_left(&line);
     }
     else
     {
@@ -1630,49 +1707,80 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     String_View data_type = sv_chop_by_delim(&line, ' ');
     sv_trim_left(&line);
 
-    if (sv_eq(data_type, cstr_as_sv(".sbyte")))
+    bool is_neg = is_negative(line);
+
+    if (sv_eq(data_type, cstr_as_sv(".byte")))
     {
-        int8_t value = (int8_t)sv_to_value(&line);
-        data_section[(*data_section_offset)++] = *(uint8_t *)&value;
+        if (is_neg)
+        {
+            int8_t value = (int8_t)sv_to_signed64(&line);
+            *(int8_t *)&data_section[*data_section_offset] = value;
+        }
+        else
+        {
+            uint8_t value = (uint8_t)sv_to_unsigned64(&line);
+            *(uint8_t *)&data_section[*data_section_offset] = value;
+        }
+        *data_section_offset += sizeof(int8_t);
     }
-    else if (sv_eq(data_type, cstr_as_sv(".sword")))
+    else if (sv_eq(data_type, cstr_as_sv(".word")))
     {
-        int16_t value = (int16_t)sv_to_value(&line);
-        *(int16_t *)&data_section[*data_section_offset] = value;
+        if (is_neg)
+        {
+            int16_t value = (int16_t)sv_to_signed64(&line);
+            *(int16_t *)&data_section[*data_section_offset] = value;
+        }
+        else
+        {
+            uint16_t value = (uint16_t)sv_to_unsigned64(&line);
+            *(uint16_t *)&data_section[*data_section_offset] = value;
+        }
         *data_section_offset += sizeof(int16_t);
     }
-    else if (sv_eq(data_type, cstr_as_sv(".sdoubleword")))
+    else if (sv_eq(data_type, cstr_as_sv(".doubleword")))
     {
-        int32_t value = (int32_t)sv_to_value(&line);
-        *(int32_t *)&data_section[*data_section_offset] = value;
+        if (is_neg)
+        {
+            int32_t value = (int32_t)sv_to_signed64(&line);
+            *(int32_t *)&data_section[*data_section_offset] = value;
+        }
+        else
+        {
+            uint32_t value = (uint32_t)sv_to_unsigned64(&line);
+            *(uint32_t *)&data_section[*data_section_offset] = value;
+        }
         *data_section_offset += sizeof(int32_t);
     }
-    else if (sv_eq(data_type, cstr_as_sv(".ubyte")))
+    else if (sv_eq(data_type, cstr_as_sv(".quadword")))
     {
-        uint8_t value = (uint8_t)sv_to_value(&line);
-        data_section[(*data_section_offset)++] = *(uint8_t *)&value;
-    }
-    else if (sv_eq(data_type, cstr_as_sv(".uword")))
-    {
-        uint16_t value = (uint16_t)sv_to_value(&line);
-        *(uint16_t *)&data_section[*data_section_offset] = value;
-        *data_section_offset += sizeof(uint16_t);
-    }
-    else if (sv_eq(data_type, cstr_as_sv(".udoubleword")))
-    {
-        uint32_t value = (uint32_t)sv_to_value(&line);
-        *(uint32_t *)&data_section[*data_section_offset] = value;
-        *data_section_offset += sizeof(uint32_t);
+        if (is_neg)
+        {
+            int64_t value = sv_to_signed64(&line);
+            *(int64_t *)&data_section[*data_section_offset] = value;
+        }
+        else
+        {
+            uint64_t value = sv_to_unsigned64(&line);
+            *(uint64_t *)&data_section[*data_section_offset] = value;
+        }
+        *data_section_offset += sizeof(int64_t);
     }
     else if (sv_eq(data_type, cstr_as_sv(".double")))
     {
-        double value = sv_to_value(&line);
+        double value = sv_to_double(&line);
         *(double *)&data_section[*data_section_offset] = value;
         *data_section_offset += sizeof(double);
     }
     else
     {
-        fprintf(stderr, "ERROR: invalid data type '%.*s'\n", (int)data_type.count, data_type.data);
+        fprintf(stderr, "Line %zu -> ERROR: invalid data type '%.*s'\n", line_no, (int)data_type.count, data_type.data);
+        compilation_successful = false;
+        return;
+    }
+
+    if (str_errno != SUCCESS)
+    {
+        fprintf(stderr, "Line %zu -> ERROR: failed to parse value for %.*s\n", line_no, (int)data_type.count, data_type.data);
         compilation_successful = false;
     }
 }

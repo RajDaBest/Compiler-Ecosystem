@@ -89,7 +89,7 @@ static Trap vm_print_s64(VirtualMachine *vm)
         return TRAP_STACK_UNDERFLOW;
     }
 
-    uint64_t value = vm->stack[vm->stack_size - 1]._as_s64;
+    int64_t value = vm->stack[vm->stack_size - 1]._as_s64;
     fprintf(stdout, "%lld\n", value);
 
     return TRAP_OK;

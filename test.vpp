@@ -1,19 +1,23 @@
 .data 
-int: .ubyte 10 
-fool: .ubyte 12 
-green: .ubyte 16 
-hell: .uword 123 
+int: .byte -10 
+fool: .byte -12 
+green: .byte 16 
+hell: .quadword -123 
+lets: .double -19.4 
 .text 
 start: upush 10 
 upush 12 
 native 4 
 upush int 
-read8 
-native 4 
+seread8 
+native 3 
 upush fool 
-read8 
-native 4 
+zeread8 
+native 3 
 upush hell 
-read16 
-native 4 
+read64 
+native 3 
+upush lets 
+read64 
+native 2 
 halt 
