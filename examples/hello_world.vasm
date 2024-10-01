@@ -4,7 +4,7 @@
 
 .data 
 
-hello: .string "hello world"
+hello: .string "hello world" ; string literal
        .byte 10 ; new line
        .byte 0 ; null byte 
 

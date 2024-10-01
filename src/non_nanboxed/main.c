@@ -91,7 +91,7 @@ static Trap vm_print_string(VirtualMachine *vm)
     }
 
     // printf("%s\n", &vm->static_memory[addr]); // may search beyond the buffer if null termination not found; but since memory is zeroed upon allocation, this wont be a problem
-                                              // until every byte beyond the string is filled with a non zero value
+    // until every byte beyond the string is filled with a non zero value
 
     return TRAP_ILLEGAL_MEMORY_ACCESS;
 }
@@ -207,9 +207,30 @@ static Trap vm_dump_static(VirtualMachine *vm)
 
     return TRAP_OK;
 }
+
+#ifdef _WIN32
+#define SYSTEM_COMMAND(command) system(command)
+#define PATH_SEPARATOR ";"
+#else
+#define SYSTEM_COMMAND(command) system(command)
+#define PATH_SEPARATOR ":"
+#endif
+
+#define MAX_LIB_PATHS 32
+#define MAX_PATH_LENGTH 1024
+#define MAX_COMMAND_LENGTH 4096
+
+typedef struct
+{
+    char paths[MAX_LIB_PATHS][MAX_PATH_LENGTH];
+    size_t count;
+} LibPaths;
+
+// ... [keep all the vm_* functions unchanged] ...
+
 void print_usage_and_exit()
 {
-    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--lib <library-path>] [--stack-size <size>] [--program-capacity <size>] [--static-size <size>] [--limit <n>] [--save-vpp [filename]] [--debug] [--vpp] <input> [output]\n");
+    fprintf(stderr, "Usage: ./virtmach --action <asm|run|pp> [--lib <library-path>]... [--vlib-ignore] [--stack-size <size>] [--program-capacity <size>] [--static-size <size>] [--limit <n>] [--save-vpp [filename]] [--debug] [--vpp] <input> [output]\n");
     exit(EXIT_FAILURE);
 }
 
@@ -224,14 +245,55 @@ int64_t parse_non_negative_int(const char *str)
     return value;
 }
 
+void split_env_paths(const char *env_value, LibPaths *lib_paths)
+{
+    if (!env_value)
+        return;
+
+    char env_copy[MAX_PATH_LENGTH];
+    strncpy(env_copy, env_value, MAX_PATH_LENGTH - 1);
+    env_copy[MAX_PATH_LENGTH - 1] = '\0';
+
+    char *token = strtok(env_copy, &PATH_SEPARATOR);
+    while (token && lib_paths->count < MAX_LIB_PATHS)
+    {
+        strncpy(lib_paths->paths[lib_paths->count], token, MAX_PATH_LENGTH - 1);
+        lib_paths->paths[lib_paths->count][MAX_PATH_LENGTH - 1] = '\0';
+        lib_paths->count++;
+        token = strtok(NULL, &PATH_SEPARATOR);
+    }
+}
+
+char *build_lib_path_string(const LibPaths *lib_paths)
+{
+    static char result[MAX_COMMAND_LENGTH] = "";
+    result[0] = '\0';
+
+    for (size_t i = 0; i < lib_paths->count; i++)
+    {
+        if (i > 0)
+        {
+            strcat(result, " --lib ");
+        }
+        else
+        {
+            strcat(result, "--lib ");
+        }
+        strcat(result, lib_paths->paths[i]);
+    }
+
+    return result;
+}
+
 int main(int argc, char **argv)
 {
-    int64_t limit = -1; // Default instruction limit: unlimited (-1)
-    int debug = 0;      // Default debug mode: disabled
-    int save_vpp = 0;   // Flag to check if --save-vpp is provided
-    int use_vpp = 0;    // Flag to check if --vpp is provided
+    int64_t limit = -1;
+    int debug = 0;
+    int save_vpp = 0;
+    int use_vpp = 0;
+    int vlib_ignore = 0;
     const char *vpp_filename = NULL;
-    const char *lib_path = NULL; // Library path for --lib
+    LibPaths lib_paths = {0};
 
     if (argc < 3)
     {
@@ -260,7 +322,18 @@ int main(int argc, char **argv)
                 fprintf(stderr, "ERROR: Missing value for --lib.\n");
                 print_usage_and_exit();
             }
-            lib_path = argv[++i]; // Capture the library path
+            if (lib_paths.count >= MAX_LIB_PATHS)
+            {
+                fprintf(stderr, "ERROR: Too many library paths.\n");
+                print_usage_and_exit();
+            }
+            strncpy(lib_paths.paths[lib_paths.count], argv[++i], MAX_PATH_LENGTH - 1);
+            lib_paths.paths[lib_paths.count][MAX_PATH_LENGTH - 1] = '\0';
+            lib_paths.count++;
+        }
+        else if (strcmp(argv[i], "--vlib-ignore") == 0)
+        {
+            vlib_ignore = 1;
         }
         else if (strcmp(argv[i], "--stack-size") == 0)
         {
@@ -301,18 +374,18 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--save-vpp") == 0)
         {
             save_vpp = 1;
-            if (i + 1 < argc && argv[i + 1][0] != '-') // Check if there's a filename provided
+            if (i + 1 < argc && argv[i + 1][0] != '-')
             {
                 vpp_filename = argv[++i];
             }
         }
         else if (strcmp(argv[i], "--debug") == 0)
         {
-            debug = 1; // Enable debug mode if --debug is present
+            debug = 1;
         }
         else if (strcmp(argv[i], "--vpp") == 0)
         {
-            use_vpp = 1; // Enable vpp preprocessor if --vpp is present
+            use_vpp = 1;
         }
         else if (!input)
         {
@@ -335,34 +408,56 @@ int main(int argc, char **argv)
         print_usage_and_exit();
     }
 
-    // Check if lib_path is provided or get it from the VLIB environment variable
-    if (!lib_path)
+    // Handle VLIB environment variable if not ignored
+    if (!vlib_ignore)
     {
-        lib_path = getenv("VLIB");
+        LibPaths env_paths = {0};
+        split_env_paths(getenv("VLIB"), &env_paths);
+
+        // Shift existing paths to make room for env paths at the beginning
+        if (env_paths.count > 0)
+        {
+            size_t total_paths = env_paths.count + lib_paths.count;
+            if (total_paths > MAX_LIB_PATHS)
+            {
+                total_paths = MAX_LIB_PATHS;
+            }
+
+            if (lib_paths.count > 0)
+            {
+                memmove(&lib_paths.paths[env_paths.count],
+                        lib_paths.paths,
+                        (total_paths - env_paths.count) * MAX_PATH_LENGTH);
+            }
+
+            memcpy(lib_paths.paths, env_paths.paths,
+                   env_paths.count * MAX_PATH_LENGTH);
+
+            lib_paths.count = total_paths;
+        }
     }
 
-    // If no lib_path is provided or set, produce an error
-    if (!lib_path)
+    // Check if we have any library paths
+    if (lib_paths.count == 0)
     {
-        fprintf(stderr, "ERROR: No library path provided. Use --lib or set the VLIB environment variable.\n");
+        fprintf(stderr, "ERROR: No library paths provided. Use --lib or set the VLIB environment variable.\n");
         print_usage_and_exit();
     }
 
-    // Default vpp file name if not provided, without .vasm extension
-    char default_vpp_file[100];
+    // Default vpp file name if not provided
+    char default_vpp_file[MAX_PATH_LENGTH];
     if (!vpp_filename)
     {
-        size_t i = 0;
-        for (; i < strlen(input); i++)
+        const char *dot = strrchr(input, '.');
+        if (dot)
         {
-            if (input[i + 1] == '.')
-            {
-                break;
-            }
+            size_t base_len = dot - input;
+            snprintf(default_vpp_file, sizeof(default_vpp_file), "%.*s.vpp", (int)base_len, input);
         }
-        memcpy(default_vpp_file, input, i + 1);
-        default_vpp_file[i + 1] = '\0';
-        sprintf(default_vpp_file, "%s.vpp", default_vpp_file);
+        else
+        {
+            snprintf(default_vpp_file, sizeof(default_vpp_file), "%s.vpp", input);
+        }
         vpp_filename = default_vpp_file;
     }
 
@@ -375,18 +470,27 @@ int main(int argc, char **argv)
         }
 
         // Preprocess the input file
-        char pre_process[400];
+        char pre_process[MAX_COMMAND_LENGTH];
         if (use_vpp)
         {
-            // Use lib_path for preprocessing
-            sprintf(pre_process, "vpp --lib %s %s", lib_path, input);
+            char *lib_path_string = build_lib_path_string(&lib_paths);
+            if (vlib_ignore)
+            {
+                snprintf(pre_process, sizeof(pre_process), "vpp %s --vlib-ignore %s",
+                         lib_path_string, input);
+            }
+            else
+            {
+                snprintf(pre_process, sizeof(pre_process), "vpp %s %s",
+                         lib_path_string, input);
+            }
         }
         else
         {
 #ifdef _WIN32
-            sprintf(pre_process, "cl /EP %s > %s", input, vpp_filename); // MSVC preprocessor
+            snprintf(pre_process, sizeof(pre_process), "cl /EP %s > %s", input, vpp_filename);
 #else
-            sprintf(pre_process, "cpp -P %s %s", input, vpp_filename); // GCC preprocessor for non-Windows
+            snprintf(pre_process, sizeof(pre_process), "cpp -P %s %s", input, vpp_filename);
 #endif
         }
 
@@ -413,28 +517,25 @@ int main(int argc, char **argv)
         label_init();
 
 #ifdef _WIN32
-        Inst program[VM_PROGRAM_CAPACITY]; // clang does not fucking support run-time allocation of data segment memory
-        uint8_t data_section[VM_DEFAULT_MEMORY_SIZE]
+        Inst program[VM_PROGRAM_CAPACITY];
+        uint8_t data_section[VM_DEFAULT_MEMORY_SIZE];
 #else
         Inst program[vm_program_capacity];
         uint8_t data_section[vm_default_memory_size];
 #endif
 
-            vm_header_ header = vm_translate_source(source, program, data_section);
+        vm_header_ header = vm_translate_source(source, program, data_section);
         label_free();
         free((void *)source.data);
         vm_save_program_to_file(program, data_section, header, output);
-        /* for (size_t i = 0; i < header.data_section_size; i++)
-        {
-            printf("%d\n", data_section[i]);
-        } */
+
         if (!save_vpp)
         {
-            char rm_file[200];
+            char rm_file[MAX_PATH_LENGTH];
 #ifdef _WIN32
-            sprintf(rm_file, "del %s", vpp_filename); // Use 'del' for Windows
+            snprintf(rm_file, sizeof(rm_file), "del %s", vpp_filename);
 #else
-            sprintf(rm_file, "rm %s", vpp_filename); // Use 'rm' for Linux
+            snprintf(rm_file, sizeof(rm_file), "rm %s", vpp_filename);
 #endif
             SYSTEM_COMMAND(rm_file);
         }
