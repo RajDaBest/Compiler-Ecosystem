@@ -23,7 +23,7 @@
 #define VM_LABEL_CAPACITY 128
 #define VM_EQU_CAPACITY 128
 #define VM_NATIVE_CAPACITY 128
-#define VM_EXECUTABLE_IDENTIFIER ((int16_t) (42069))
+#define VM_EXECUTABLE_IDENTIFIER ((int16_t)(42069))
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
 #define MAKE_INST_DUP(rel_addr) {.type = INST_DUP, .operand = (rel_addr)}
@@ -1824,11 +1824,14 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
             exit(EXIT_FAILURE);
         }
 
-        for (size_t i = 0; i < line.count; i++)
+        /* for (size_t i = 0; i < line.count; i++)
         {
             data_section[*data_section_offset] = (uint8_t)line.data[i];
             *data_section_offset += 1;
-        }
+        } */
+
+        memcpy(&data_section[*data_section_offset], line.data, line.count);
+        *data_section_offset += line.count;
 
         data_section[*data_section_offset] = '\0';
         *data_section_offset += 1;
