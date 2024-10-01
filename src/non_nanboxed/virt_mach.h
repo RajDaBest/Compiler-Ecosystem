@@ -4,7 +4,6 @@
 #define _NAN_IMPLEMENTATION
 
 #include "./String_View.h"
-#include "./label_resolution.h"
 
 #include <assert.h>
 #include <errno.h>
