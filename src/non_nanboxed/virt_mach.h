@@ -1269,7 +1269,7 @@ void vm_init(VirtualMachine *vm, char *source_code)
     }
     vm->natives_size = 0;
 
-    vm->static_memory = malloc(sizeof(uint8_t) * vm_memory_capacity);
+    vm->static_memory = calloc(sizeof(uint8_t) * vm_memory_capacity, 1);
     if (!vm->static_memory)
     {
         fprintf(stderr, "ERROR: static memory allocation failed: %s\n", strerror(errno));
@@ -1615,8 +1615,6 @@ int64_t check_start()
 
     return -1;
 }
-
-static int not_in_any_section = 3;
 
 vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_section)
 {

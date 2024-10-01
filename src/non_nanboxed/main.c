@@ -20,9 +20,19 @@ static Trap vm_print_string(VirtualMachine *vm)
 
     uint64_t addr = vm->stack[vm->stack_size - 1]._as_u64;
 
-    printf("%s\n", &vm->static_memory[addr]);
+    for (size_t i = addr; i < vm_memory_capacity; i++)
+    {
+        if (vm->static_memory[i] == '\0')
+        {
+            printf("%s\n", &vm->static_memory[addr]);
+            return TRAP_OK;
+        }
+    }
 
-    return TRAP_OK;
+    // printf("%s\n", &vm->static_memory[addr]); // may search beyond the buffer if null termination not found; but since memory is zeroed upon allocation, this wont be a problem
+                                              // until every byte beyond the string is filled with a non zero value
+
+    return TRAP_ILLEGAL_MEMORY_ACCESS;
 }
 
 static Trap vm_alloc(VirtualMachine *vm)
