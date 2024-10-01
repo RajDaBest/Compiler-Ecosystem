@@ -227,7 +227,6 @@ Inst vm_translate_line(String_View line, size_t current_program_counter);
 static void process_label(String_View label, size_t program_size);
 static void resolve_labels(Inst *program);
 static void check_unresolved_labels();
-static void process_section_directive(String_View section, bool *is_code);
 static void process_code_line(String_View line, Inst *program, size_t *code_section_offset);
 static void process_data_line(String_View line, uint8_t *data_section, size_t *data_section_offset);
 static bool check_compilation_status(Inst *program, size_t code_section_offset);
@@ -1617,11 +1616,14 @@ int64_t check_start()
     return -1;
 }
 
+static int not_in_any_section = 3;
+
 vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_section)
 {
     size_t code_section_offset = 0;
     size_t data_section_offset = 0;
     bool is_code = true;
+    bool is_data = false;
     size_t line_no = 0;
 
     while (source.count > 0)
@@ -1642,15 +1644,24 @@ vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_
         if (line.count == 0)
             continue; // Ignore empty lines
 
-        if (*line.data == '.')
+        String_View section = line;
+        String_View directive = sv_chop_by_delim(&section, ' ');
+
+        if (sv_eq(directive, cstr_as_sv(".text")))
         {
-            process_section_directive(line, &is_code);
+            is_code = true;
+            is_data = false;
+        }
+        else if (sv_eq(directive, cstr_as_sv(".data")))
+        {
+            is_code = false;
+            is_data = true;
         }
         else if (is_code)
         {
             process_code_line(line, program, &code_section_offset);
         }
-        else
+        else if (is_data)
         {
             process_data_line(line, data_section, &data_section_offset);
         }
@@ -1670,25 +1681,34 @@ vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_
 
     return create_vm_header(code_section_offset, data_section_offset);
 }
-
-static void process_section_directive(String_View section, bool *is_code)
+/*
+static int process_section_directive(String_View section, bool *is_code, bool *is_data)
 {
     String_View directive = sv_chop_by_delim(&section, ' ');
     if (sv_eq(directive, cstr_as_sv(".text")))
     {
         *is_code = true;
+        *is_data = false;
     }
     else if (sv_eq(directive, cstr_as_sv(".data")))
     {
         *is_code = false;
+        *is_data = true;
+    }
+    else if (is_code || is_data)
+    {
+        return in_a_section;
     }
     else
     {
         fprintf(stderr, "ERROR: invalid section type '%.*s'\n", (int)directive.count, directive.data);
         compilation_successful = false;
+        return -1;
     }
-}
 
+    return 0;
+}
+ */
 static void process_code_line(String_View line, Inst *program, size_t *code_section_offset)
 {
     String_View label = sv_chop_by_delim(&line, ':');
@@ -1715,13 +1735,14 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     if (*(line.data - 1) == ':')
     {
         process_label(label, *data_section_offset);
-        sv_trim_left(&line);
     }
     else
     {
         line.count = label.count; // Reset line if no label found
         line.data = label.data;
     }
+
+    // printf("%.*s\n", (int)label.count, label.data);
 
     sv_trim_left(&line);
     String_View data_type = sv_chop_by_delim(&line, ' ');
@@ -1818,6 +1839,17 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     }
     else if (sv_eq(data_type, cstr_as_sv(".string")))
     {
+        if (line.count >= 2 && line.data[0] == '"' && line.data[line.count - 1] == '"')
+        {
+            line.data++;
+            line.count -= 2;
+        }
+        else
+        {
+            fprintf(stderr, "Line Number: %zu -> ERROR: %.*s not a valid vasm string\n", (int)line.count, line.data);
+            compilation_successful = false;
+        }
+
         if (*data_section_offset > vm_default_memory_size - line.count - 1)
         {
             fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .string %.*s\n", line_no, (int)line.count, line.data);
@@ -1833,8 +1865,8 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
         memcpy(&data_section[*data_section_offset], line.data, line.count);
         *data_section_offset += line.count;
 
-        data_section[*data_section_offset] = '\0';
-        *data_section_offset += 1;
+        /* data_section[*data_section_offset] = '\0';
+         *data_section_offset += 1; */
     }
     else
     {
