@@ -15,14 +15,14 @@
 #define MAX_LIB_PATHS 32
 #define HASH_TABLE_SIZE 256  // Must be a power of 2
 
-typedef struct Hashnode {
+typedef struct vpp_Hashnode {
     String_View label_name;
     String_View label_value;
-    struct HashNode* next;
-} HashNode;
+    struct vpp_Hashnode* next;
+} vpp_Hashnode;
 
 typedef struct {
-    HashNode* buckets[HASH_TABLE_SIZE];
+    vpp_Hashnode* buckets[HASH_TABLE_SIZE];
     size_t size;
 } HashTable;
 
@@ -34,7 +34,7 @@ typedef struct {
 HashTable define_table = {0};
 bool preprocessing_failed = false;
 
-uint32_t hash_sv(String_View sv) {
+uint32_t vpp_hash_sv(String_View sv) {
     uint32_t hash = 2166136261u;  
     for (size_t i = 0; i < sv.count; i++) {
         hash ^= (uint8_t)sv.data[i];
@@ -44,8 +44,8 @@ uint32_t hash_sv(String_View sv) {
 }
 
 // Initialize a new hash node
-HashNode* create_hash_node(String_View name, String_View value) {
-    HashNode* node = malloc(sizeof(HashNode));
+vpp_Hashnode* create_hash_node(String_View name, String_View value) {
+    vpp_Hashnode* node = malloc(sizeof(vpp_Hashnode));
     if (!node) return NULL;
     
     node->label_name = name;
@@ -56,10 +56,10 @@ HashNode* create_hash_node(String_View name, String_View value) {
 
 // Insert or update a define in the hash table
 bool hash_table_insert(String_View name, String_View value) {
-    uint32_t hash = hash_sv(name);
+    uint32_t hash = vpp_hash_sv(name);
     size_t index = hash & (HASH_TABLE_SIZE - 1);
     
-    HashNode* current = define_table.buckets[index];
+    vpp_Hashnode* current = define_table.buckets[index];
     
     // Check if the label already exists
     while (current != NULL) {
@@ -71,7 +71,7 @@ bool hash_table_insert(String_View name, String_View value) {
     }
     
     // Create new node
-    HashNode* new_node = create_hash_node(name, value);
+    vpp_Hashnode* new_node = create_hash_node(name, value);
     if (!new_node) return false;
     
     // Insert at the beginning of the bucket
@@ -83,11 +83,11 @@ bool hash_table_insert(String_View name, String_View value) {
 }
 
 // Look up a define in the hash table
-HashNode* hash_table_lookup(String_View name) {
-    uint32_t hash = hash_sv(name);
+vpp_Hashnode* hash_table_lookup(String_View name) {
+    uint32_t hash = vpp_hash_sv(name);
     size_t index = hash & (HASH_TABLE_SIZE - 1);
     
-    HashNode* current = define_table.buckets[index];
+    vpp_Hashnode* current = define_table.buckets[index];
     while (current != NULL) {
         if (sv_eq(current->label_name, name)) {
             return current;
@@ -101,9 +101,9 @@ HashNode* hash_table_lookup(String_View name) {
 // Clean up the hash table
 void hash_table_cleanup(void) {
     for (size_t i = 0; i < HASH_TABLE_SIZE; i++) {
-        HashNode* current = define_table.buckets[i];
+        vpp_Hashnode* current = define_table.buckets[i];
         while (current != NULL) {
-            HashNode* next = current->next;
+            vpp_Hashnode* next = current->next;
             free(current);
             current = next;
         }
@@ -380,7 +380,7 @@ int main(int argc, char **argv) {
         } else {
             while (line.count > 0) {
                 String_View token = sv_chop_by_delim(&line, ' ');
-                HashNode* node = hash_table_lookup(token);
+                vpp_Hashnode* node = hash_table_lookup(token);
                 
                 if (node && node->label_value.count > 0) {
                     fprintf(vpp, "%.*s ", (int)node->label_value.count, 

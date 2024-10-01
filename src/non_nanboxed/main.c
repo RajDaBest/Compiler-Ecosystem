@@ -254,13 +254,13 @@ void split_env_paths(const char *env_value, LibPaths *lib_paths)
     strncpy(env_copy, env_value, MAX_PATH_LENGTH - 1);
     env_copy[MAX_PATH_LENGTH - 1] = '\0';
 
-    char *token = strtok(env_copy, &PATH_SEPARATOR);
+    char *token = strtok(env_copy, PATH_SEPARATOR);
     while (token && lib_paths->count < MAX_LIB_PATHS)
     {
         strncpy(lib_paths->paths[lib_paths->count], token, MAX_PATH_LENGTH - 1);
         lib_paths->paths[lib_paths->count][MAX_PATH_LENGTH - 1] = '\0';
         lib_paths->count++;
-        token = strtok(NULL, &PATH_SEPARATOR);
+        token = strtok(NULL, PATH_SEPARATOR);
     }
 }
 

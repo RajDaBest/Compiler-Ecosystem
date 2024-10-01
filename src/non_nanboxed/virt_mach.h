@@ -4,6 +4,8 @@
 #define _NAN_IMPLEMENTATION
 
 #include "./String_View.h"
+#include "./label_resolution.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
@@ -46,12 +48,22 @@
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 size_t vm_memory_capacity = VM_MEMORY_CAPACITY;
-size_t label_capacity = VM_LABEL_CAPACITY;
-size_t equ_label_capacity = VM_EQU_CAPACITY;
 size_t natives_capacity = VM_NATIVE_CAPACITY;
 size_t line_no = 0;
+size_t label_capacity = VM_LABEL_CAPACITY;
 size_t vm_default_memory_size = VM_DEFAULT_MEMORY_SIZE;
 bool compilation_successful = true;
+
+#define MAX_HASHTABLE_SIZE 256
+
+typedef struct Hashnode
+{
+    String_View label;
+    size_t value;
+    struct Hashnode *next;
+} Hashnode;
+
+Hashnode *bucket[MAX_HASHTABLE_SIZE];
 
 typedef union
 {
@@ -65,18 +77,11 @@ typedef struct
     String_View label;
     bool resolved;
     size_t inst_location;
+    size_t label_line_no;
 } label_inst_location;
 
-typedef struct
-{
-    String_View label;
-    size_t label_pointing_location;
-} label_point_location;
-
-size_t label_array_counter = 0;
 size_t not_resolved_yet_counter = 0;
 
-label_point_location *label_array;
 label_inst_location *not_resolved_yet;
 
 typedef enum
@@ -189,8 +194,11 @@ typedef struct
     bool has_start;
 } vm_header_;
 
-void push_to_not_resolved_yet(String_View label, size_t inst_location);
-void push_to_label_array(String_View label, size_t pointing_location);
+uint32_t hash_sv(String_View sv);
+void push_to_hashtable(String_View label, size_t value);
+Hashnode *search_for_node(String_View label);
+void push_to_not_resolved_yet(String_View label, size_t inst_location, size_t label_line_no);
+// void push_to_label_array(String_View label, size_t pointing_location);
 const char *trap_as_cstr(Trap trap);
 const char *inst_type_as_asm_str(Inst_Type type);
 const char *inst_type_as_cstr(Inst_Type type);
@@ -462,15 +470,78 @@ const char *trap_as_cstr(Trap trap)
     }
 }
 
-void push_to_not_resolved_yet(String_View label, size_t inst_location)
+uint32_t hash_sv(String_View sv)
+{
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < sv.count; i++)
+    {
+        hash ^= (uint8_t)sv.data[i];
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+void push_to_hashtable(String_View label, size_t value)
+{
+    if (search_for_node(label))
+    {
+        fprintf(stderr, "Line Number %zu -> ERROR: Label '%.*s' redefinition\n", line_no, (int)label.count, label.data);
+        compilation_successful = false;
+        return;
+    }
+
+    uint32_t key = hash_sv(label) % MAX_HASHTABLE_SIZE;
+
+    Hashnode *node = (Hashnode *)malloc(sizeof(Hashnode));
+    if (!node)
+    {
+        fprintf(stderr, "ERROR: memory allocation for the hash node of the label %.*s failed\n", (int)label.count, label.data);
+        exit(EXIT_FAILURE);
+    }
+    node->label = label;
+    node->value = value;
+
+    if (!bucket[key]) // its null
+    {
+        bucket[key] = node;
+        node->next = NULL;
+    }
+    else
+    {
+        node->next = bucket[key];
+        bucket[key] = node;
+    }
+}
+
+Hashnode *search_for_node(String_View label)
+{
+    uint32_t key = hash_sv(label) % MAX_HASHTABLE_SIZE;
+
+    Hashnode *current_node = bucket[key];
+
+    while (current_node != NULL)
+    {
+        if (sv_eq(current_node->label, label))
+        {
+            return current_node;
+        }
+
+        current_node = current_node->next;
+    }
+
+    return NULL;
+}
+
+void push_to_not_resolved_yet(String_View label, size_t inst_location, size_t label_line_no)
 {
     not_resolved_yet[not_resolved_yet_counter].inst_location = inst_location;
     not_resolved_yet[not_resolved_yet_counter].label = label;
     not_resolved_yet[not_resolved_yet_counter].resolved = false;
+    not_resolved_yet[not_resolved_yet_counter].label_line_no = label_line_no;
     not_resolved_yet_counter++;
 }
 
-void push_to_label_array(String_View label, size_t pointing_location)
+/* void push_to_label_array(String_View label, size_t pointing_location)
 {
     for (size_t i = 0; i < label_array_counter; i++)
     {
@@ -484,7 +555,7 @@ void push_to_label_array(String_View label, size_t pointing_location)
     label_array[label_array_counter].label_pointing_location = pointing_location;
     label_array[label_array_counter].label = label;
     label_array_counter++;
-}
+} */
 
 void vm_native_push(VirtualMachine *vm, native native_func)
 {
@@ -1224,12 +1295,12 @@ int vm_load_program_from_memory(VirtualMachine *vm, Inst *program, size_t progra
 
 void label_init()
 {
-    label_array = malloc(sizeof(label_point_location) * label_capacity);
+    /* label_array = malloc(sizeof(label_point_location) * label_capacity);
     if (!label_array)
     {
         fprintf(stderr, "ERROR: label array allocation failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
-    }
+    } */
 
     not_resolved_yet = malloc(sizeof(label_inst_location) * label_capacity);
     if (!not_resolved_yet)
@@ -1242,7 +1313,17 @@ void label_init()
 void label_free()
 {
     free((void *)not_resolved_yet);
-    free((void *)label_array);
+    for (size_t i = 0; i < MAX_HASHTABLE_SIZE; i++)
+    {
+        Hashnode *current_node = bucket[i];
+        while (current_node)
+        {
+            Hashnode *temp = current_node->next;
+            free(current_node);
+            current_node = temp;
+        }
+    }
+    /* free((void *)label_array); */
 }
 
 void vm_init(VirtualMachine *vm, char *source_code)
@@ -1512,7 +1593,7 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
 
             if (str_errno == FAILURE)
             {
-                push_to_not_resolved_yet(line, current_program_counter);
+                push_to_not_resolved_yet(line, current_program_counter, line_no);
                 return (Inst){.type = i, .operand._as_u64 = 0};
             }
             else if (str_errno == OPERAND_OVERFLOW)
@@ -1557,42 +1638,43 @@ Inst vm_translate_line(String_View line, size_t current_program_counter)
 
 static void process_label(String_View label, size_t program_size)
 {
-    if (label_array_counter >= label_capacity)
+    /* if (label_array_counter >= label_capacity)
     {
         fprintf(stderr, "Line Number %zu -> ERROR: label capacity exceeded at label: %.*s\n",
                 line_no, (int)label.count, label.data);
         compilation_successful = false;
         return;
-    }
+    } */
 
-    push_to_label_array(label, (uint64_t)program_size);
+    push_to_hashtable(label, (uint64_t)program_size);
 }
 
 static void resolve_labels(Inst *program)
 {
     for (size_t i = 0; i < not_resolved_yet_counter; i++)
     {
-        for (size_t j = 0; j < label_array_counter; j++)
+        Hashnode *node = search_for_node(not_resolved_yet[i].label);
+        // printf("%d\n", hash_sv(node->label));
+        if (!node)
         {
-            if (sv_eq(not_resolved_yet[i].label, label_array[j].label))
-            {
-                program[not_resolved_yet[i].inst_location].operand._as_u64 = label_array[j].label_pointing_location;
-                not_resolved_yet[i].resolved = true;
-                break;
-            }
+            fprintf(stderr, "Line Number %zu -> ERROR: cannot resolve label: %.*s\n",
+                    not_resolved_yet[i].label_line_no, (int)not_resolved_yet[i].label.count, not_resolved_yet[i].label.data);
+            compilation_successful = false;
+        }
+        else
+        {
+            program[not_resolved_yet[i].inst_location].operand._as_u64 = node->value;
         }
     }
 }
 
-static void check_unresolved_labels()
+/* static void check_unresolved_labels()
 {
     bool has_unresolved = false;
     for (size_t i = 0; i < not_resolved_yet_counter; i++)
     {
         if (!not_resolved_yet[i].resolved)
         {
-            fprintf(stderr, "Line Number %zu -> ERROR: cannot resolve label: %.*s\n",
-                    line_no, (int)not_resolved_yet[i].label.count, not_resolved_yet[i].label.data);
             has_unresolved = true;
         }
     }
@@ -1601,19 +1683,30 @@ static void check_unresolved_labels()
         compilation_successful = false;
     }
 }
+ */
 
 int64_t check_start()
 {
     String_View start_ = cstr_as_sv("start");
-    for (size_t i = 0; i < label_array_counter; i++)
+    /* for (size_t i = 0; i < label_array_counter; i++)
     {
         if (sv_eq(label_array[i].label, start_))
         {
             return (int64_t)label_array[i].label_pointing_location;
         }
+    } */
+
+    Hashnode *node = search_for_node(start_);
+    if (!node)
+    {
+        return -1;
+    }
+    else
+    {
+        return (int64_t)node->value;
     }
 
-    return -1;
+    /* return -1; */
 }
 
 vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_section)
@@ -1622,7 +1715,7 @@ vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_
     size_t data_section_offset = 0;
     bool is_code = true;
     bool is_data = false;
-    
+
     while (source.count > 0)
     {
         if (code_section_offset >= vm_program_capacity)
@@ -1669,7 +1762,7 @@ vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_
     if (compilation_successful)
     {
         resolve_labels(program);
-        check_unresolved_labels();
+        /* check_unresolved_labels(); */
     }
     else
     {
@@ -1843,7 +1936,7 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
         }
         else
         {
-            fprintf(stderr, "Line Number: %zu -> ERROR: %.*s not a valid vasm string\n", (int)line.count, line.data);
+            fprintf(stderr, "Line Number: %zu -> ERROR: %.*s not a valid vasm string\n", line_no, (int)line.count, line.data);
             compilation_successful = false;
         }
 

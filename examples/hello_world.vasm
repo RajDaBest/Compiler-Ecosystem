@@ -1,6 +1,4 @@
 %include <vstdlib.hasm>
-%define klsg 1000
-%define hell 100000
 
 .data 
 
