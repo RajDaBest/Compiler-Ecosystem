@@ -5,3 +5,5 @@
 %define print_u64 4
 %define dump_static 5
 %define print_string 6
+%define read 7
+%define write 8

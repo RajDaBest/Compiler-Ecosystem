@@ -133,17 +133,17 @@ typedef enum
     INST_RET,
     INST_CALL,
     INST_NATIVE,
-    INST_WRITE8, // write the raw bytes on the stack onto the memory locations
-    INST_WRITE16,
-    INST_WRITE32,
-    INST_WRITE64,
-    INST_ZEREAD8, // zero extend the memory value into the 64-bit stack
-    INST_ZEREAD16,
-    INST_ZEREAD32,
-    INST_READ64,
-    INST_SEREAD8, // sign extend the memory value into the 64-bit stack
-    INST_SEREAD16,
-    INST_SEREAD32,
+    INST_STORE8, // write the raw bytes on the stack onto the memory locations
+    INST_STORE16,
+    INST_STORE32,
+    INST_STORE64,
+    INST_ZELOAD8, // zero extend the memory value into the 64-bit stack
+    INST_ZELOAD16,
+    INST_ZELOAD32,
+    INST_LOAD64,
+    INST_SELOAD8, // sign extend the memory value into the 64-bit stack
+    INST_SELOAD16,
+    INST_SELOAD32,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
 
@@ -314,28 +314,28 @@ const char *get_inst_name(Inst_Type inst)
         return "call";
     case INST_NATIVE:
         return "native";
-    case INST_ZEREAD8:
-        return "zeread8";
-    case INST_ZEREAD16:
-        return "zeread16";
-    case INST_ZEREAD32:
-        return "zeread32";
-    case INST_READ64:
-        return "read64";
-    case INST_SEREAD8:
-        return "seread8";
-    case INST_SEREAD16:
-        return "seread16";
-    case INST_SEREAD32:
-        return "seread32";
-    case INST_WRITE8:
-        return "write8";
-    case INST_WRITE16:
-        return "write16";
-    case INST_WRITE32:
-        return "write32";
-    case INST_WRITE64:
-        return "write64";
+    case INST_ZELOAD8:
+        return "zeload8";
+    case INST_ZELOAD16:
+        return "zeload16";
+    case INST_ZELOAD32:
+        return "zeload32";
+    case INST_LOAD64:
+        return "load64";
+    case INST_SELOAD8:
+        return "seload8";
+    case INST_SELOAD16:
+        return "seload16";
+    case INST_SELOAD32:
+        return "seload32";
+    case INST_STORE8:
+        return "store8";
+    case INST_STORE16:
+        return "store16";
+    case INST_STORE32:
+        return "store32";
+    case INST_STORE64:
+        return "store64";
     default:
         return NULL; // Invalid instruction
     }
@@ -513,7 +513,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
 {
     switch (inst.type)
     {
-    case INST_ZEREAD8:
+    case INST_ZELOAD8:
     {
         if (vm->stack_size < 1)
         {
@@ -530,7 +530,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_ZEREAD16:
+    case INST_ZELOAD16:
     {
         if (vm->stack_size < 1)
         {
@@ -547,7 +547,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_ZEREAD32:
+    case INST_ZELOAD32:
     {
         if (vm->stack_size < 1)
         {
@@ -564,7 +564,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_READ64:
+    case INST_LOAD64:
     {
         if (vm->stack_size < 1)
         {
@@ -581,7 +581,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_SEREAD8:
+    case INST_SELOAD8:
     {
         if (vm->stack_size < 1)
         {
@@ -598,7 +598,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_SEREAD16:
+    case INST_SELOAD16:
     {
         if (vm->stack_size < 1)
         {
@@ -615,7 +615,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_SEREAD32:
+    case INST_SELOAD32:
     {
         if (vm->stack_size < 1)
         {
@@ -632,7 +632,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_WRITE8:
+    case INST_STORE8:
     {
         if (vm->stack_size < 2)
         {
@@ -651,7 +651,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_WRITE16:
+    case INST_STORE16:
     {
         if (vm->stack_size < 2)
         {
@@ -670,7 +670,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_WRITE32:
+    case INST_STORE32:
     {
         if (vm->stack_size < 2)
         {
@@ -689,7 +689,7 @@ static int handle_static(VirtualMachine *vm, Inst inst)
         break;
     }
 
-    case INST_WRITE64:
+    case INST_STORE64:
     {
         if (vm->stack_size < 2)
         {
@@ -1188,20 +1188,20 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
         return handle_native(vm, inst);
 
         /* case INST_READ:
-        case INST_WRITE:
+        case INST_STORE:
             return handle_static(vm, inst); */
 
-    case INST_WRITE8:
-    case INST_WRITE16:
-    case INST_WRITE32:
-    case INST_WRITE64:
-    case INST_SEREAD8:
-    case INST_SEREAD16:
-    case INST_SEREAD32:
-    case INST_READ64:
-    case INST_ZEREAD8:
-    case INST_ZEREAD16:
-    case INST_ZEREAD32:
+    case INST_STORE8:
+    case INST_STORE16:
+    case INST_STORE32:
+    case INST_STORE64:
+    case INST_SELOAD8:
+    case INST_SELOAD16:
+    case INST_SELOAD32:
+    case INST_LOAD64:
+    case INST_ZELOAD8:
+    case INST_ZELOAD16:
+    case INST_ZELOAD32:
         return handle_static(vm, inst);
 
     default:
@@ -1622,8 +1622,7 @@ vm_header_ vm_translate_source(String_View source, Inst *program, uint8_t *data_
     size_t data_section_offset = 0;
     bool is_code = true;
     bool is_data = false;
-    size_t line_no = 0;
-
+    
     while (source.count > 0)
     {
         if (code_section_offset >= vm_program_capacity)
@@ -1868,14 +1867,14 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     }
     else
     {
-        fprintf(stderr, "Line %zu -> ERROR: invalid data type '%.*s'\n", line_no, (int)data_type.count, data_type.data);
+        fprintf(stderr, "Line Number: %zu -> ERROR: invalid data type '%.*s'\n", line_no, (int)data_type.count, data_type.data);
         compilation_successful = false;
         return;
     }
 
     if (str_errno != SUCCESS)
     {
-        fprintf(stderr, "Line %zu -> ERROR: failed to parse value for %.*s\n", line_no, (int)data_type.count, data_type.data);
+        fprintf(stderr, "Line Number %zu -> ERROR: failed to parse value for %.*s\n", line_no, (int)data_type.count, data_type.data);
         compilation_successful = false;
     }
 }

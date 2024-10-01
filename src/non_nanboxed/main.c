@@ -11,6 +11,67 @@
 #define _VM_IMPLEMENTATION
 #include "./virt_mach.h"
 
+static Trap vm_read(VirtualMachine *vm)
+{
+    if (vm->stack_size < 2)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    uint64_t addr = vm->stack[vm->stack_size - 2]._as_u64;
+    size_t len = vm->stack[vm->stack_size - 1]._as_u64;
+
+    if (addr >= vm_memory_capacity)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    if (len >= vm_memory_capacity)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    if (len >= vm_memory_capacity - addr)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    fread(&vm->static_memory[addr], 1, len, stdin);
+
+    vm->stack_size -= 2;
+    return TRAP_OK;
+}
+
+static Trap vm_write(VirtualMachine *vm)
+{
+    if (vm->stack_size < 2)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    uint64_t addr = vm->stack[vm->stack_size - 2]._as_u64;
+    size_t len = vm->stack[vm->stack_size - 1]._as_u64;
+
+    if (addr >= vm_memory_capacity)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    if (len >= vm_memory_capacity)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    if (len >= vm_memory_capacity - addr)
+    {
+        return TRAP_ILLEGAL_MEMORY_ACCESS;
+    }
+
+    fwrite(&vm->static_memory[addr], 1, len, stdout);
+
+    return TRAP_OK;
+}
+
 static Trap vm_print_string(VirtualMachine *vm)
 {
     if (vm->stack_size < 1)
@@ -397,6 +458,8 @@ int main(int argc, char **argv)
         vm_native_push(&vm, vm_print_u64);
         vm_native_push(&vm, vm_dump_static);
         vm_native_push(&vm, vm_print_string);
+        vm_native_push(&vm, vm_read);
+        vm_native_push(&vm, vm_write);
         vm_exec_program(&vm, limit, debug);
         vm_internal_free(&vm);
 

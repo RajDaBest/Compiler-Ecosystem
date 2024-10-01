@@ -1,0 +1,15 @@
+
+.data 
+
+hello: .string "hello world" 
+.byte 10 ; new line 
+.byte 0 ; null byte 
+
+.text 
+
+start: 
+
+upush hello 
+upush 13 
+native 8 
+halt 

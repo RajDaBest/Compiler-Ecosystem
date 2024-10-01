@@ -132,12 +132,12 @@ int main(int argc, char **argv)
         while (include_processing.count > 0)
         {
             String_View line = sv_chop_by_delim(&include_processing, '\n');
-            line = sv_chop_by_delim(&line, ';'); // Remove comments
+            /* line = sv_chop_by_delim(&line, ';'); // Remove comments
             sv_trim_left(&line);
             sv_trim_right(&line);
 
             if (line.count == 0)
-                continue; // Ignore empty lines
+                continue; // Ignore empty lines */
 
             if (*line.data == '%')
             {

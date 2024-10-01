@@ -1,0 +1,12 @@
+.text 
+
+start: 
+
+upush 0 
+upush 6 
+native 7 
+
+upush 0 
+upush 5 
+native 8 
+halt 
