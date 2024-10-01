@@ -1818,7 +1818,7 @@ static void process_data_line(String_View line, uint8_t *data_section, size_t *d
     }
     else if (sv_eq(data_type, cstr_as_sv(".string")))
     {
-        if (*data_section_offset >= vm_default_memory_size - line.count - 1)
+        if (*data_section_offset > vm_default_memory_size - line.count - 1)
         {
             fprintf(stderr, "Line Number: %zu -> ERROR: Not enough default static memory for .string %.*s\n", line_no, (int)line.count, line.data);
             exit(EXIT_FAILURE);
