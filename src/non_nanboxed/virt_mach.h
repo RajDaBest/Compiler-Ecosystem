@@ -23,6 +23,7 @@
 #define VM_LABEL_CAPACITY 128
 #define VM_EQU_CAPACITY 128
 #define VM_NATIVE_CAPACITY 128
+#define VM_EXECUTABLE_IDENTIFIER ((int16_t) (42069))
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
 #define MAKE_INST_DUP(rel_addr) {.type = INST_DUP, .operand = (rel_addr)}
@@ -179,12 +180,13 @@ typedef struct VirtualMachine // structure defining the actual virtual machine
 
 typedef struct
 {
-    bool has_start;
-    size_t code_section_offset;
+    size_t code_section_offset_in_executable;
     int64_t start_location;
     size_t code_section_size;
-    size_t data_section_offset; // not using currently
+    size_t data_section_offset_in_executable;
     size_t data_section_size;
+    int16_t vm_executable_identifier;
+    bool has_start;
 } vm_header_;
 
 void push_to_not_resolved_yet(String_View label, size_t inst_location);
@@ -1402,9 +1404,27 @@ vm_header_ vm_load_program_from_file(Inst *program, uint8_t *data_section, const
         exit(EXIT_FAILURE);
     }
 
+    if (header.vm_executable_identifier != VM_EXECUTABLE_IDENTIFIER)
+    {
+        fprintf(stderr, "The provided file '%s' is not a vm executable\n", file_path);
+        exit(EXIT_FAILURE);
+    }
+
+    if (header.code_section_size > vm_program_capacity)
+    {
+        fprintf(stderr, "ERROR: Text section of the executable %s is of size %zu which exceeds the maximum text section capacity %zu of the virtual machine\n", file_path, header.code_section_size, vm_program_capacity);
+        exit(EXIT_FAILURE);
+    }
+
+    if (header.data_section_size > vm_default_memory_size)
+    {
+        fprintf(stderr, "ERROR: Data section of the executable %s is of size %zu which exceeds the maximum default data section capacity %zu of the virtual machine\n", file_path, header.data_section_size, vm_default_memory_size);
+        exit(EXIT_FAILURE);
+    }
+
     assert(header.data_section_size <= vm_default_memory_size * sizeof(uint8_t));
 
-    if (fseek(f, header.data_section_offset, SEEK_SET))
+    if (fseek(f, header.data_section_offset_in_executable, SEEK_SET))
     {
         fclose(f);
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
@@ -1426,7 +1446,7 @@ vm_header_ vm_load_program_from_file(Inst *program, uint8_t *data_section, const
 
     assert(header.code_section_size <= vm_program_capacity * sizeof(Inst));
 
-    if (fseek(f, header.code_section_offset, SEEK_SET))
+    if (fseek(f, header.code_section_offset_in_executable, SEEK_SET))
     {
         fclose(f);
         fprintf(stderr, "ERROR: Could not read file '%s': %s\n", file_path, strerror(errno));
@@ -1849,10 +1869,11 @@ static vm_header_ create_vm_header(size_t code_section_offset, size_t data_secti
     return (vm_header_){
         .code_section_size = code_section_offset,
         .has_start = has_start,
-        .data_section_offset = sizeof(vm_header_),
-        .code_section_offset = sizeof(vm_header_) + sizeof(uint8_t) * data_section_offset,
+        .data_section_offset_in_executable = sizeof(vm_header_),
+        .code_section_offset_in_executable = sizeof(vm_header_) + sizeof(uint8_t) * data_section_offset,
         .start_location = start_location,
-        .data_section_size = data_section_offset};
+        .data_section_size = data_section_offset,
+        .vm_executable_identifier = VM_EXECUTABLE_IDENTIFIER};
 }
 
 String_View slurp_file(const char *file_path)
