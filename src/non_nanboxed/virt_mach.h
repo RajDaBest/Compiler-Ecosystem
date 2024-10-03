@@ -53,7 +53,7 @@
 #define CONV_OP(in, out)                                                                   \
     do                                                                                     \
     {                                                                                      \
-        vm->stack[vm->stack_size - 2]._as_##out = vm->stack[vm->stack_size - 2]._as_##in; \
+        vm->stack[vm->stack_size - 1]._as_##out = vm->stack[vm->stack_size - 1]._as_##in; \
     } while (false)
 // relying on automatic type converisons
 
