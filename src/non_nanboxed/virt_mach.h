@@ -44,6 +44,12 @@
 #define MAKE_INST_EQ {.type = INST_EQ}
 #define MAKE_INST_NOP {.type = INST_NOP}
 
+#define BINARY_OP(in, out, op)                                                                                                      \
+    do                                                                                                                              \
+    {                                                                                                                               \
+        vm->stack[vm->stack_size - 2]._as_##out = vm->stack[vm->stack_size - 2]._as_##in op vm->stack[vm->stack_size - 1]._as_##in; \
+    } while (false)
+
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 size_t vm_memory_capacity = VM_MEMORY_CAPACITY;
@@ -148,6 +154,21 @@ typedef enum
     INST_SELOAD8, // sign extend the memory value into the 64-bit stack
     INST_SELOAD16,
     INST_SELOAD32,
+    INST_EQU,
+    INST_EQS,
+    INST_EQF,
+    INST_GEU,
+    INST_GES,
+    INST_GEF,
+    INST_LEU,
+    INST_LES,
+    INST_LEF,
+    INST_GU,
+    INST_GS,
+    INST_GF,
+    INST_LU,
+    INST_LS,
+    INST_LF,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
 
@@ -343,6 +364,37 @@ const char *get_inst_name(Inst_Type inst)
         return "store32";
     case INST_STORE64:
         return "store64";
+    case INST_EQU:
+        return "equ";
+    case INST_EQS:
+        return "eqs";
+    case INST_EQF:
+        return "eqf";
+    case INST_GEU:
+        return "geu";
+    case INST_GES:
+        return "ges";
+    case INST_GEF:
+        return "gef";
+    case INST_LEU:
+        return "leu";
+    case INST_LES:
+        return "les";
+    case INST_LEF:
+        return "lef";
+    case INST_GU:
+        return "gu";
+    case INST_GS:
+        return "gs";
+    case INST_GF:
+        return "gf";
+    case INST_LU:
+        return "lu";
+    case INST_LS:
+        return "ls";
+    case INST_LF:
+        return "lf";
+
     default:
         return NULL; // Invalid instruction
     }
@@ -577,6 +629,69 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
     {
         fprintf(stream, " [empty]\n");
     }
+}
+
+static int handle_comparisons(VirtualMachine *vm, Inst inst)
+{
+    if (vm->stack_size < 2)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    switch (inst.type)
+    {
+    case INST_EQU:
+        BINARY_OP(u64, u64, ==);
+        break;
+    case INST_EQS:
+        BINARY_OP(u64, s64, ==);
+        break;
+    case INST_EQF:
+        BINARY_OP(u64, f64, ==);
+        break;
+    case INST_GEU:
+        BINARY_OP(u64, u64, >=);
+        break;
+    case INST_GES:
+        BINARY_OP(u64, s64, >=);
+        break;
+    case INST_GEF:
+        BINARY_OP(u64, f64, >=);
+        break;
+    case INST_LEU:
+        BINARY_OP(u64, u64, <=);
+        break;
+    case INST_LES:
+        BINARY_OP(u64, s64, <=);
+        break;
+    case INST_LEF:
+        BINARY_OP(u64, f64, <=);
+        break;
+    case INST_GU:
+        BINARY_OP(u64, u64, >);
+        break;
+    case INST_GS:
+        BINARY_OP(u64, s64, >);
+        break;
+    case INST_GF:
+        BINARY_OP(u64, f64, >);
+        break;
+    case INST_LU:
+        BINARY_OP(u64, u64, <);
+        break;
+    case INST_LS:
+        BINARY_OP(u64, s64, <);
+        break;
+    case INST_LF:
+        BINARY_OP(u64, f64, <);
+        break;
+    default:
+        return TRAP_ILLEGAL_INSTRUCTION;
+    }
+
+    vm->instruction_pointer++;
+    vm->stack_size--;
+    return TRAP_OK;
 }
 
 static int handle_static(VirtualMachine *vm, Inst inst)
@@ -1091,10 +1206,6 @@ static int handle_bitwise(VirtualMachine *vm, Inst inst)
     if (vm->stack_size < (inst.type == INST_NOT ? 1 : 2))
         return TRAP_STACK_UNDERFLOW;
 
-    uint64_t a = vm->stack[vm->stack_size - 1]._as_u64;
-    uint64_t b = (inst.type != INST_NOT) ? vm->stack[vm->stack_size - 2]._as_u64 : 0;
-    uint64_t result;
-
     /*     bool both_nan = is_nan(vm->stack[vm->stack_size - 1]) &&
                         (inst.type == INST_NOT || is_nan(vm->stack[vm->stack_size - 2])); */
 
@@ -1103,13 +1214,13 @@ static int handle_bitwise(VirtualMachine *vm, Inst inst)
     switch (inst.type)
     {
     case INST_AND:
-        result = (a & b) | 0xFFF1000000000000;
+        BINARY_OP(u64, u64, &);
         break;
     case INST_OR:
-        result = (a | b) | 0xFFF1000000000000;
+        BINARY_OP(u64, u64, |);
         break;
     case INST_NOT:
-        result = (~a | 0xFFF1000000000000);
+        vm->stack[vm->stack_size - 1]._as_u64 = ~(vm->stack[vm->stack_size - 1]._as_u64);
         break;
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
@@ -1138,7 +1249,6 @@ static int handle_bitwise(VirtualMachine *vm, Inst inst)
         return TRAP_ILLEGAL_OPERATION;
     } */
 
-    vm->stack[vm->stack_size - (inst.type == INST_NOT ? 1 : 2)]._as_u64 = result;
     if (inst.type != INST_NOT)
         vm->stack_size--;
     vm->instruction_pointer++;
