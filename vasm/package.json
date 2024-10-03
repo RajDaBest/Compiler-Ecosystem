@@ -2,7 +2,7 @@
   "name": "vasm-language-support",
   "displayName": "VASM Assembly Language (for VM) Support",
   "description": "Language support for VASM assembly language",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "engines": {
     "vscode": "^1.85.0"
   },

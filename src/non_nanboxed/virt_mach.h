@@ -57,6 +57,12 @@
     } while (false)
 // relying on automatic type converisons
 
+/*
+
+
+
+ */
+
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 size_t vm_memory_capacity = VM_MEMORY_CAPACITY;
@@ -679,7 +685,10 @@ static int handle_conversions(VirtualMachine *vm, Inst inst)
         CONV_OP(u64, s64);
         break;
     case INST_FTU:
-        CONV_OP(f64, u64);
+        // CONV_OP(f64, u64); -> this will overflow the result to zero if the floating point value is negative
+        // a better and safer way is to first typecast the floating value into int64_t and then typecast that into uint64_t
+
+        vm->stack[vm->stack_size - 1]._as_u64 = (uint64_t)((int64_t)vm->stack[vm->stack_size - 1]._as_f64);
         break;
     case INST_FTS:
         CONV_OP(f64, s64);

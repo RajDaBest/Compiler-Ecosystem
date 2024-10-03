@@ -1,8 +1,5 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.activate = activate;
-exports.deactivate = deactivate;
-const vscode = require("vscode");
 const INSTRUCTION_SET = [
     'nop', 'spush', 'fpush', 'upush', 'rdup', 'adup',
     'splus', 'uplus', 'fplus', 'sminus', 'uminus', 'fminus',
@@ -15,7 +12,8 @@ const INSTRUCTION_SET = [
     'store8', 'store16', 'store32', 'store64',
     'equ', 'eqs', 'eqf', 'geu', 'ges', 'gef',
     'leu', 'les', 'lef', 'gu', 'gs', 'gf',
-    'lu', 'ls', 'lf'
+    'lu', 'ls', 'lf',
+    'utf', 'stf', 'ftu', 'fts', 'stu', 'uts' // Added new instructions here
 ];
 const DIRECTIVES = [
     '%include', '%define',
@@ -88,97 +86,13 @@ function getInstructionDocumentation(instruction) {
         'lu': 'Compare less than for unsigned integers: dest = (dest < src), pop src',
         'ls': 'Compare less than for signed integers: dest = (dest < src), pop src',
         'lf': 'Compare less than for floating-point numbers: dest = (dest < src), pop src',
+        'utf': 'Convert top of stack from unsigned to signed',
+        'stf': 'Convert top of stack from signed to floating-point',
+        'ftu': 'Convert top of stack from floating-point to unsigned',
+        'fts': 'Convert top of stack from floating-point to signed',
+        'stu': 'Convert top of stack from signed to unsigned',
+        'uts': 'Convert top of stack from unsigned to signed'
     };
     return docs[instruction] || 'No documentation available';
 }
-function getDirectiveDocumentation(directive) {
-    const docs = {
-        '%include': 'Include another VASM file - Format: %include "filename"',
-        '%define': 'Define a constant - Format: %define NAME VALUE',
-        '.byte': 'Define a byte (8 bits) - Format: .byte <value>',
-        '.string': 'Define a null-terminated string - Format: .string "text"',
-        '.double': 'Define a double-precision floating-point number (64 bits) - Format: .double <value>',
-        '.word': 'Define a word (16 bits) - Format: .word <value>',
-        '.doubleword': 'Define a doubleword (32 bits) - Format: .doubleword <value>',
-        '.quadword': 'Define a quadword (64 bits) - Format: .quadword <value>',
-        '.text': 'Begin text section (code)',
-        '.data': 'Begin data section'
-    };
-    return docs[directive] || 'No documentation available';
-}
-function activate(context) {
-    // Register completions provider
-    const completionProvider = vscode.languages.registerCompletionItemProvider('vasm', {
-        provideCompletionItems(document, position) {
-            const completions = [];
-            // Add instructions
-            INSTRUCTION_SET.forEach(instruction => {
-                const item = new vscode.CompletionItem(instruction, vscode.CompletionItemKind.Keyword);
-                item.documentation = new vscode.MarkdownString(getInstructionDocumentation(instruction));
-                completions.push(item);
-            });
-            // Add directives
-            DIRECTIVES.forEach(directive => {
-                const item = new vscode.CompletionItem(directive, vscode.CompletionItemKind.Keyword);
-                item.documentation = new vscode.MarkdownString(getDirectiveDocumentation(directive));
-                completions.push(item);
-            });
-            return completions;
-        }
-    });
-    // Register hover provider
-    const hoverProvider = vscode.languages.registerHoverProvider('vasm', {
-        provideHover(document, position) {
-            const range = document.getWordRangeAtPosition(position);
-            const word = document.getText(range);
-            if (INSTRUCTION_SET.includes(word)) {
-                return new vscode.Hover(getInstructionDocumentation(word));
-            }
-            if (DIRECTIVES.includes(word)) {
-                return new vscode.Hover(getDirectiveDocumentation(word));
-            }
-            return null;
-        }
-    });
-    // Register diagnostic provider
-    let diagnosticCollection = vscode.languages.createDiagnosticCollection('vasm');
-    let activeEditor = vscode.window.activeTextEditor;
-    if (activeEditor) {
-        updateDiagnostics(activeEditor.document, diagnosticCollection);
-    }
-    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(editor => {
-        if (activeEditor && editor.document === activeEditor.document) {
-            updateDiagnostics(editor.document, diagnosticCollection);
-        }
-    }));
-    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => {
-        activeEditor = editor;
-        if (editor) {
-            updateDiagnostics(editor.document, diagnosticCollection);
-        }
-    }));
-    context.subscriptions.push(completionProvider, hoverProvider);
-}
-function updateDiagnostics(document, collection) {
-    if (document.languageId !== 'vasm') {
-        return;
-    }
-    const diagnostics = [];
-    for (let i = 0; i < document.lineCount; i++) {
-        const line = document.lineAt(i);
-        const text = line.text.trim();
-        if (text === '')
-            continue;
-        // Check for invalid instructions
-        const words = text.split(/\s+/);
-        const instruction = words[0];
-        if (!instruction.startsWith(';') && !instruction.endsWith(':') &&
-            !INSTRUCTION_SET.includes(instruction) && !DIRECTIVES.includes(instruction)) {
-            const diagnostic = new vscode.Diagnostic(line.range, `Unknown instruction or directive: ${instruction}`, vscode.DiagnosticSeverity.Error);
-            diagnostics.push(diagnostic);
-        }
-    }
-    collection.set(document.uri, diagnostics);
-}
-function deactivate() { }
 //# sourceMappingURL=extension.js.map
