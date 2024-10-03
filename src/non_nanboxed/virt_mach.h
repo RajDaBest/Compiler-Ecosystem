@@ -50,6 +50,13 @@
         vm->stack[vm->stack_size - 2]._as_##out = vm->stack[vm->stack_size - 2]._as_##in op vm->stack[vm->stack_size - 1]._as_##in; \
     } while (false)
 
+#define CONV_OP(in, out)                                                                   \
+    do                                                                                     \
+    {                                                                                      \
+        vm->stack[vm->stack_size - 2]._as_##out = vm->stack[vm->stack_size - 2]._as_##out; \
+    } while (false)
+// relying on automatic type converisons
+
 size_t vm_stack_capacity = VM_STACK_CAPACITY;
 size_t vm_program_capacity = VM_PROGRAM_CAPACITY;
 size_t vm_memory_capacity = VM_MEMORY_CAPACITY;
@@ -169,6 +176,12 @@ typedef enum
     INST_LU,
     INST_LS,
     INST_LF,
+    INST_FTU,
+    INST_FTS,
+    INST_STF,
+    INST_UTF,
+    INST_STU,
+    INST_UTS,
     INST_COUNT,
 } Inst_Type; // enum for the instruction types
 
@@ -232,7 +245,8 @@ static int handle_push(VirtualMachine *vm, Inst inst);
 static int handle_arithmetic(VirtualMachine *vm, Inst inst);
 static int handle_functions(VirtualMachine *vm, Inst inst);
 static int handle_jump(VirtualMachine *vm, Inst inst);
-static int handle_comparison(VirtualMachine *vm);
+static int handle_comparisons(VirtualMachine *vm, Inst inst);
+static int handle_conversions(VirtualMachine *vm, Inst inst);
 static int handle_adup(VirtualMachine *vm, Inst inst);
 static int handle_rdup(VirtualMachine *vm, Inst inst);
 static int handle_bitwise(VirtualMachine *vm, Inst inst);
@@ -394,6 +408,18 @@ const char *get_inst_name(Inst_Type inst)
         return "ls";
     case INST_LF:
         return "lf";
+    case INST_UTF:
+        return "utf";
+    case INST_STF:
+        return "stf";
+    case INST_FTU:
+        return "ftu";
+    case INST_FTS:
+        return "fts";
+    case INST_STU:
+        return "stu";
+    case INST_UTS:
+        return "uts";
 
     default:
         return NULL; // Invalid instruction
@@ -631,6 +657,39 @@ void vm_dump_stack(FILE *stream, const VirtualMachine *vm)
     }
 }
 
+static int handle_conversions(VirtualMachine *vm, Inst inst)
+{
+    if (vm->stack_size < 1)
+    {
+        return TRAP_STACK_UNDERFLOW;
+    }
+
+    switch (inst.type)
+    {
+    case INST_UTF:
+        CONV_OP(u64, f64);
+        break;
+    case INST_STF:
+        CONV_OP(s64, f64);
+        break;
+    case INST_STU:
+        CONV_OP(s64, u64);
+        break;
+    case INST_UTS:
+        CONV_OP(u64, s64);
+        break;
+    case INST_FTU:
+        CONV_OP(f64, u64);
+        break;
+    case INST_FTS:
+        CONV_OP(f64, s64);
+        break;
+    }
+
+    vm->instruction_pointer++;
+    return TRAP_OK;
+}
+
 static int handle_comparisons(VirtualMachine *vm, Inst inst)
 {
     if (vm->stack_size < 2)
@@ -644,46 +703,46 @@ static int handle_comparisons(VirtualMachine *vm, Inst inst)
         BINARY_OP(u64, u64, ==);
         break;
     case INST_EQS:
-        BINARY_OP(u64, s64, ==);
+        BINARY_OP(s64, u64, ==);
         break;
     case INST_EQF:
-        BINARY_OP(u64, f64, ==);
+        BINARY_OP(f64, u64, ==);
         break;
     case INST_GEU:
         BINARY_OP(u64, u64, >=);
         break;
     case INST_GES:
-        BINARY_OP(u64, s64, >=);
+        BINARY_OP(s64, u64, >=);
         break;
     case INST_GEF:
-        BINARY_OP(u64, f64, >=);
+        BINARY_OP(f64, u64, >=);
         break;
     case INST_LEU:
         BINARY_OP(u64, u64, <=);
         break;
     case INST_LES:
-        BINARY_OP(u64, s64, <=);
+        BINARY_OP(s64, u64, <=);
         break;
     case INST_LEF:
-        BINARY_OP(u64, f64, <=);
+        BINARY_OP(f64, u64, <=);
         break;
     case INST_GU:
         BINARY_OP(u64, u64, >);
         break;
     case INST_GS:
-        BINARY_OP(u64, s64, >);
+        BINARY_OP(s64, u64, >);
         break;
     case INST_GF:
-        BINARY_OP(u64, f64, >);
+        BINARY_OP(f64, u64, >);
         break;
     case INST_LU:
         BINARY_OP(u64, u64, <);
         break;
     case INST_LS:
-        BINARY_OP(u64, s64, <);
+        BINARY_OP(s64, u64, <);
         break;
     case INST_LF:
-        BINARY_OP(u64, f64, <);
+        BINARY_OP(f64, u64, <);
         break;
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
@@ -1383,6 +1442,31 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
     case INST_ZELOAD16:
     case INST_ZELOAD32:
         return handle_static(vm, inst);
+
+    case INST_UTS:
+    case INST_STU:
+    case INST_STF:
+    case INST_FTS:
+    case INST_UTF:
+    case INST_FTU:
+        return handle_conversions(vm, inst);
+
+    case INST_EQF:
+    case INST_EQS:
+    case INST_EQU:
+    case INST_GEF:
+    case INST_GES:
+    case INST_GEU:
+    case INST_LEF:
+    case INST_LES:
+    case INST_LEU:
+    case INST_GU:
+    case INST_GF:
+    case INST_GS:
+    case INST_LS:
+    case INST_LF:
+    case INST_LU:
+        return handle_comparisons(vm, inst);
 
     default:
         return TRAP_ILLEGAL_INSTRUCTION;
