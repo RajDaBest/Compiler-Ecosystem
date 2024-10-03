@@ -9,7 +9,10 @@ const INSTRUCTION_SET = [
     'rswap', 'aswap', 'ret', 'call', 'native',
     'zeload8', 'zeload16', 'zeload32', 'load64',
     'seload8', 'seload16', 'seload32',
-    'store8', 'store16', 'store32', 'store64'
+    'store8', 'store16', 'store32', 'store64',
+    'equ', 'eqs', 'eqf', 'geu', 'ges', 'gef',
+    'leu', 'les', 'lef', 'gu', 'gs', 'gf',
+    'lu', 'ls', 'lf'
 ];
 
 const DIRECTIVES = [
@@ -67,7 +70,24 @@ function getInstructionDocumentation(instruction: string): string {
         'store8': 'Store 8 bits to memory',
         'store16': 'Store 16 bits to memory',
         'store32': 'Store 32 bits to memory',
-        'store64': 'Store 64 bits to memory'
+        'store64': 'Store 64 bits to memory',
+
+        // New comparison instructions
+        'equ': 'Compare equality: dest = (dest == src), pop src',
+        'eqs': 'Compare equality for signed integers: dest = (dest == src), pop src',
+        'eqf': 'Compare equality for floating-point numbers: dest = (dest == src), pop src',
+        'geu': 'Compare unsigned integers: dest = (dest >= src), pop src',
+        'ges': 'Compare signed integers: dest = (dest >= src), pop src',
+        'gef': 'Compare floating-point numbers: dest = (dest >= src), pop src',
+        'leu': 'Compare unsigned integers: dest = (dest <= src), pop src',
+        'les': 'Compare signed integers: dest = (dest <= src), pop src',
+        'lef': 'Compare floating-point numbers: dest = (dest <= src), pop src',
+        'gu': 'Compare greater than for unsigned integers: dest = (dest > src), pop src',
+        'gs': 'Compare greater than for signed integers: dest = (dest > src), pop src',
+        'gf': 'Compare greater than for floating-point numbers: dest = (dest > src), pop src',
+        'lu': 'Compare less than for unsigned integers: dest = (dest < src), pop src',
+        'ls': 'Compare less than for signed integers: dest = (dest < src), pop src',
+        'lf': 'Compare less than for floating-point numbers: dest = (dest < src), pop src',
     };
 
     return docs[instruction] || 'No documentation available';
