@@ -1,0 +1,21 @@
+%include <vstdlib.hasm>
+.data
+
+string: .string "aello"
+        .byte 10
+        .byte 0
+
+.text
+
+start:
+
+upush string
+zeload8
+upush 13
+uplus 
+upush string
+; rswap 1
+upush string
+upush 5
+native write
+halt

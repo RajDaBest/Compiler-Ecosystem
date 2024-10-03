@@ -1,0 +1,45 @@
+{
+    "Basic Program Structure": {
+        "prefix": "vasm-basic",
+        "body": [
+            ".text",
+            "main:",
+            "\t$1",
+            "\thalt",
+            "",
+            ".data",
+            "\t$2"
+        ],
+        "description": "Basic VASM program structure"
+    },
+    "Include Statement": {
+        "prefix": "include",
+        "body": [
+            "%include \"$1\""
+        ],
+        "description": "Include another VASM file"
+    },
+    "Define Statement": {
+        "prefix": "define",
+        "body": [
+            "%define ${1:NAME} ${2:VALUE}"
+        ],
+        "description": "Define a constant"
+    },
+    "String Declaration": {
+        "prefix": "string",
+        "body": [
+            ".string \"$1\""
+        ],
+        "description": "Declare a null-terminated string"
+    },
+    "Function": {
+        "prefix": "func",
+        "body": [
+            "${1:function_name}:",
+            "\t$2",
+            "\tret"
+        ],
+        "description": "Create a function"
+    }
+}

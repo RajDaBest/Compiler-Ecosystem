@@ -1,0 +1,61 @@
+{
+  "name": "vasm-language-support",
+  "displayName": "VASM Assembly Language (for VM) Support",
+  "description": "Language support for VASM assembly language",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "publisher": "neofyt",
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:vasm"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint": "^8.48.0",
+    "typescript": "^5.2.2"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "vasm",
+        "aliases": [
+          "VASM Assembly",
+          "vasm"
+        ],
+        "extensions": [
+          ".vasm"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "vasm",
+        "scopeName": "source.vasm",
+        "path": "./syntaxes/vasm.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "vasm",
+        "path": "./snippets/vasm.json"
+      }
+    ]
+  }
+}

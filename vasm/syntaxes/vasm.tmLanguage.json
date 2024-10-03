@@ -1,0 +1,106 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "VASM Assembly",
+	"patterns": [
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#directives"
+		},
+		{
+			"include": "#labels"
+		},
+		{
+			"include": "#instructions"
+		},
+		{
+			"include": "#numbers"
+		},
+		{
+			"include": "#strings"
+		}
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.line.semicolon.vasm",
+					"match": ";.*$"
+				}
+			]
+		},
+		"directives": {
+			"patterns": [
+				{
+					"name": "keyword.control.directive.vasm",
+					"match": "%(?:include|define)|\\.(byte|string|double|word|doubleword|quadword|text|data)"
+				}
+			]
+		},
+		"labels": {
+			"patterns": [
+				{
+					"name": "entity.name.function.vasm",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*:"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.vasm",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.vasm",
+					"match": "\\\\."
+				}
+			]
+		},
+		"instructions": {
+			"patterns": [
+				{
+					"name": "keyword.control.instruction.arithmetic.vasm",
+					"match": "\\b(splus|uplus|fplus|sminus|uminus|fminus|smult|umult|fmult|sdiv|udiv|fdiv)\\b"
+				},
+				{
+					"name": "keyword.control.instruction.jump.vasm",
+					"match": "\\b(jmp|ujmp_if|fjmp_if)\\b"
+				},
+				{
+					"name": "keyword.control.instruction.stack.vasm",
+					"match": "\\b(nop|spush|fpush|upush|rdup|adup|rswap|aswap|empty|pop|pop_at)\\b"
+				},
+				{
+					"name": "keyword.control.instruction.memory.vasm",
+					"match": "\\b(zeload8|zeload16|zeload32|load64|seload8|seload16|seload32|store8|store16|store32|store64)\\b"
+				},
+				{
+					"name": "keyword.control.instruction.logic.vasm",
+					"match": "\\b(eq|lsr|asr|sl|and|or|not)\\b"
+				},
+				{
+					"name": "keyword.control.instruction.function.vasm",
+					"match": "\\b(ret|call|native|halt)\\b"
+				}
+			]
+		},
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.decimal.vasm",
+					"match": "\\b\\d+\\b"
+				},
+				{
+					"name": "constant.numeric.hexadecimal.vasm",
+					"match": "\\b0x[0-9A-Fa-f]+\\b"
+				},
+				{
+					"name": "constant.numeric.float.vasm",
+					"match": "\\b\\d+\\.\\d+\\b"
+				}
+			]
+		}
+	},
+	"scopeName": "source.vasm"
+}
