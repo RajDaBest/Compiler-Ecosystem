@@ -17,5 +17,6 @@ upush string
 ; rswap 1
 upush string
 upush 5
+
 native write
 halt

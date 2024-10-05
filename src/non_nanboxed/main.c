@@ -517,10 +517,10 @@ int main(int argc, char **argv)
         label_init();
 
 #ifdef _WIN32
-        Inst program[VM_PROGRAM_CAPACITY];
+        Inst program[VM_PROGRAM_CAPACITY * sizeof(Inst)];
         uint8_t data_section[VM_DEFAULT_MEMORY_SIZE];
 #else
-        Inst program[vm_program_capacity];
+        Inst program[vm_program_capacity * sizeof(Inst)];
         uint8_t data_section[vm_default_memory_size];
 #endif
 
