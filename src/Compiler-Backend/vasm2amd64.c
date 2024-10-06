@@ -70,8 +70,7 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
         return false;
     }
 
-    size_t offset = vm_stack_capacity * sizeof(uint64_t);
-    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\nstack_top: dq (stack + %zu)\n", vm_stack_capacity, offset);
+    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\n", vm_stack_capacity);
     fprintf(ctx->program_file, "section .text\nglobal _start\n");
 
     ctx->code_section_offset = 0;
@@ -188,27 +187,26 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
     {
     case INST_UPUSH:
     case INST_SPUSH:
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nsub rsi, 8\nmov QWORD [rsi], %.*s\nmov [stack_top], rsi\n",
+        fprintf(ctx->program_file, "sub r15, 8\nmov QWORD [r15], %.*s\n",
                 (int)operand->count, operand->data);
         break;
     case INST_FPUSH:
         fprintf(ctx->data_file, "L%zu: dq %.*s\n", ctx->l_num,
                 (int)operand->count, operand->data);
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nsub rsi, 8\nmovsd xmm0, [L%zu]\nmovsd [rsi], xmm0\nmov [stack_top], rsi\n",
+        fprintf(ctx->program_file, "sub r15, 8\nmovsd xmm0, [L%zu]\nmovsd [r15], xmm0\n",
                 ctx->l_num);
         ctx->l_num++;
         break;
     case INST_HALT:
-        fprintf(ctx->program_file, "mov rbx, [stack_top]\nmov rax, 60\nmov rdi, [rbx]\nsyscall\n");
+        fprintf(ctx->program_file, "mov rax, 60\nmov rdi, [r15]\nsyscall\n");
         break;
     case INST_SPLUS:
     case INST_UPLUS:
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nmov rax, [rsi]\nadd rsi, 8\nadd [rsi], rax\nmov [stack_top], rsi\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
+        fprintf(ctx->program_file, "mov rax, [r15]\nadd r15, 8\nadd [r15], rax\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
         break;
     case INST_FPLUS:
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nmovsd xmm0, [rsi]\nadd rsi, 8\nvaddsd xmm0, [rsi]\nvmovsd [rsi], xmm0\nmov [stack_top], rsi\n");
+        fprintf(ctx->program_file, "movsd xmm0, [r15]\nadd r15, 8\nvaddsd xmm0, [r15]\nvmovsd [r15], xmm0\n");
         break;
-
     default:
         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                  "Line Number %zu -> ERROR: Unknown instruction number %zu",
@@ -535,6 +533,12 @@ bool process_source_file(CompilerContext *ctx, const char *input_file)
             {
                 if (!handle_code_line(ctx, &label))
                     return false;
+            }
+
+            if (sv_eq(label, cstr_as_sv("_start")))
+            {
+                size_t offset = vm_stack_capacity * sizeof(uint64_t);
+                fprintf(ctx->program_file, "mov r15, stack + %zu\n", offset);
             }
             ctx->code_section_offset++;
         }
