@@ -1,12 +1,9 @@
-.data
-
-hello: .byte 10
-
 .text
 
 _start:
 
-    upush 10
+    fpush 10.9
+    fpush 11.8
+    fplus
     halt
 
-.data

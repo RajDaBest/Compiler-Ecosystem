@@ -193,13 +193,21 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
     case INST_FPUSH:
         fprintf(ctx->data_file, "L%zu: dq %.*s\n", ctx->l_num,
                 (int)operand->count, operand->data);
-        fprintf(ctx->program_file, "movsd xmm0, [L%zu]\nsub rsp, 8\nmovsd [rsp], xmm0",
+        fprintf(ctx->program_file, "movsd xmm0, [L%zu]\nsub rsp, 8\nmovsd [rsp], xmm0\n",
                 ctx->l_num);
         ctx->l_num++;
         break;
     case INST_HALT:
-        fprintf(ctx->program_file, "mov rax, 60\nmov rdi, 0\nsyscall\n");
+        fprintf(ctx->program_file, "mov rax, 60\nmov rdi, [rsp]\nsyscall\n");
         break;
+    case INST_SPLUS:
+    case INST_UPLUS:
+        fprintf(ctx->program_file, "pop rax\npop rbx\nadd rax, rbx\npush rax\n");
+        break;
+    case INST_FPLUS:
+        fprintf(ctx->program_file, "movsd xmm0, [rsp]\naddsd xmm0, [rsp+8]\nadd rsp, 8\nmovsd [rsp], xmm0\n"); 
+        break;
+
     default:
         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                  "Line Number %zu -> ERROR: Unknown instruction number %zu",
@@ -572,6 +580,8 @@ int main(int argc, char **argv)
     {
         fprintf(stderr, "Compilation failed: %s\n", ctx.error_buffer);
         cleanup_compiler_context(&ctx);
+        remove("temp.asm");
+        remove(argv[2]);
         return EXIT_FAILURE;
     }
 
