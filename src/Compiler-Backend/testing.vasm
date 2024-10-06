@@ -2,8 +2,8 @@
 
 _start:
 
-    fpush 10.9
-    fpush 11.8
-    fplus
+    upush 10
+    upush 18
+    uplus
     halt
 

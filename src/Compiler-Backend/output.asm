@@ -1,20 +1,25 @@
+section .bss
+stack: resq 1024
 section .data
-L0: dq 10.9
-L1: dq 11.8
+stack_top: dq stack
 
 section .text
 global _start
 _start:
-movsd xmm0, [L0]
-sub rsp, 8
-movsd [rsp], xmm0
-movsd xmm0, [L1]
-sub rsp, 8
-movsd [rsp], xmm0
-movsd xmm0, [rsp]
-addsd xmm0, [rsp+8]
-add rsp, 8
-movsd [rsp], xmm0
+mov rsi, [stack_top]
+add rsi, 8
+mov QWORD [rsi], 10
+mov [stack_top], rsi
+mov rsi, [stack_top]
+add rsi, 8
+mov QWORD [rsi], 18
+mov [stack_top], rsi
+mov rsi, [stack_top]
+mov rax, [rsi]
+sub rsi, 8
+add [rsi], rax
+mov [stack_top], rsi
+mov rbx, [stack_top]
 mov rax, 60
-cvttsd2si edi, [rsp]
+mov rdi, [rbx]
 syscall
