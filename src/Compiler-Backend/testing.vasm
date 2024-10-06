@@ -1,7 +1,12 @@
 .data
 
+hello: .byte 10
+
 .text
 
-label:
+_start:
+
+    upush 10
+    halt
 
 .data
