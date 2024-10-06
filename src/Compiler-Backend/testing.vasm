@@ -5,5 +5,6 @@ _start:
     upush 10
     upush 18
     uplus
+    upush 90
     halt
 

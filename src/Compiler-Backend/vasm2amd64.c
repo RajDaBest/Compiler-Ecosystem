@@ -70,7 +70,8 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
         return false;
     }
 
-    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\nstack_top: dq stack\n", vm_stack_capacity);
+    size_t offset = vm_stack_capacity * sizeof(uint64_t);
+    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\nstack_top: dq (stack + %zu)\n", vm_stack_capacity, offset);
     fprintf(ctx->program_file, "section .text\nglobal _start\n");
 
     ctx->code_section_offset = 0;
@@ -187,13 +188,13 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
     {
     case INST_UPUSH:
     case INST_SPUSH:
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nadd rsi, 8\nmov QWORD [rsi], %.*s\nmov [stack_top], rsi\n",
+        fprintf(ctx->program_file, "mov rsi, [stack_top]\nsub rsi, 8\nmov QWORD [rsi], %.*s\nmov [stack_top], rsi\n",
                 (int)operand->count, operand->data);
         break;
     case INST_FPUSH:
         fprintf(ctx->data_file, "L%zu: dq %.*s\n", ctx->l_num,
                 (int)operand->count, operand->data);
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nmovsd xmm0, [L%zu]\nadd rsi, 8\nmovsd [rsi], xmm0\nmov [stack_top], rsi\n",
+        fprintf(ctx->program_file, "mov rsi, [stack_top]\nsub rsi, 8\nmovsd xmm0, [L%zu]\nmovsd [rsi], xmm0\nmov [stack_top], rsi\n",
                 ctx->l_num);
         ctx->l_num++;
         break;
@@ -202,10 +203,10 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         break;
     case INST_SPLUS:
     case INST_UPLUS:
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nmov rax, [rsi]\nsub rsi, 8\nadd [rsi], rax\nmov [stack_top], rsi\n");  // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
+        fprintf(ctx->program_file, "mov rsi, [stack_top]\nmov rax, [rsi]\nadd rsi, 8\nadd [rsi], rax\nmov [stack_top], rsi\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
         break;
     case INST_FPLUS:
-        fprintf(ctx->program_file, "mov rsi, [stack_top]\nmovsd xmm0, [rsi]\nsub rsi, 8\nvaddsd xmm0, [rsi]\nvmovsd [rsi], xmm0\nmov [stack_top], rsi\n");
+        fprintf(ctx->program_file, "mov rsi, [stack_top]\nmovsd xmm0, [rsi]\nadd rsi, 8\nvaddsd xmm0, [rsi]\nvmovsd [rsi], xmm0\nmov [stack_top], rsi\n");
         break;
 
     default:
