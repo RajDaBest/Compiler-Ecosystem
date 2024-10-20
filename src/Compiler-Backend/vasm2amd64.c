@@ -41,7 +41,7 @@ typedef struct
 
 label_hashnode *label_table[MAX_HASHTABLE_SIZE] = {NULL};
 
-// Function prototypes
+// Function proto type
 bool init_compiler_context(CompilerContext *ctx, const char *output_file);
 void cleanup_compiler_context(CompilerContext *ctx);
 label_hashnode *search_in_label_table(String_View label);
@@ -187,25 +187,36 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
     {
     case INST_UPUSH:
     case INST_SPUSH:
-        fprintf(ctx->program_file, "sub r15, 8\nmov QWORD [r15], %.*s\n",
-                (int)operand->count, operand->data);
+        fprintf(ctx->program_file, "sub r15, 8\n"
+                                   "mov QWORD [r15], %.*s\n",
+                (int)operand->count,
+                operand->data);
         break;
     case INST_FPUSH:
         fprintf(ctx->data_file, "L%zu: dq %.*s\n", ctx->l_num,
                 (int)operand->count, operand->data);
-        fprintf(ctx->program_file, "sub r15, 8\nmovsd xmm0, [L%zu]\nmovsd [r15], xmm0\n",
+        fprintf(ctx->program_file, "sub r15, 8\n"
+                                   "movsd xmm0, [L%zu]\n"
+                                   "movsd [r15], xmm0\n",
                 ctx->l_num);
         ctx->l_num++;
         break;
     case INST_HALT:
-        fprintf(ctx->program_file, "mov rax, 60\nmov rdi, [r15]\nsyscall\n");
+        fprintf(ctx->program_file, "mov rax, 60\n"
+                                   "mov rdi, [r15]\n"
+                                   "syscall\n");
         break;
     case INST_SPLUS:
     case INST_UPLUS:
-        fprintf(ctx->program_file, "mov rax, [r15]\nadd r15, 8\nadd [r15], rax\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
+        fprintf(ctx->program_file, "mov rax, [r15]\n"
+                                   "add r15, 8\n"
+                                   "add [r15], rax\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
         break;
     case INST_FPLUS:
-        fprintf(ctx->program_file, "movsd xmm0, [r15]\nadd r15, 8\nvaddsd xmm0, [r15]\nvmovsd [r15], xmm0\n");
+        fprintf(ctx->program_file, "movsd xmm0, [r15]\n"
+                                   "add r15, 8\n"
+                                   "vaddsd xmm0, [r15]\n"
+                                   "vmovsd [r15], xmm0\n");
         break;
     default:
         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
