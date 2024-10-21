@@ -14,9 +14,9 @@ print_u64:
     add r15, 8
     mov r14, print_u64_buffer + 19
 
-div_loop:
+    mov r13, 10div_loop:
     xor edx,   edx ; zero rdx before using the division instruction
-    div 10
+    div r13
     add dl,   48 ; 48 is the ASCII for '0', i added it to convert the numeric digit to it's ASCII equivalent
     mov byte [r14], dl
     sub r14,   1

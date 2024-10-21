@@ -91,7 +91,7 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
                                "    mov rax, [r15]\n"
                                "    add r15, 8\n"
                                "    mov r14, print_u64_buffer + 19\n\n"
-                               "    mov r13, 10"
+                               "    mov r13, 10\n"
                                "div_loop:\n"
                                "    xor edx,   edx ; zero rdx before using the division instruction\n"
                                "    div r13\n"
