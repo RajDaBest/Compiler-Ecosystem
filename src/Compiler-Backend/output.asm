@@ -31,6 +31,7 @@ div_loop:
     syscall
 
     ret
+
 _start:
 mov r15, stack + 8192
     sub r15, 8

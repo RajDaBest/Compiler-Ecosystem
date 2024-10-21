@@ -620,7 +620,7 @@ bool process_source_file(CompilerContext *ctx, const char *input_file)
             if (sv_eq(label, cstr_as_sv("_start")))
             {
                 size_t offset = vm_stack_capacity * sizeof(uint64_t);
-                fprintf(ctx->program_file, "mov r15, stack + %zu\n", offset);
+                fprintf(ctx->program_file, "    mov r15, stack + %zu\n", offset);
             }
             ctx->code_section_offset++;
         }
