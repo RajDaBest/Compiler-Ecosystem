@@ -105,7 +105,7 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
                                "    mov rsi, print_u64_buffer\n"
                                "    mov rdx, 21\n"
                                "    syscall\n\n"
-                               "    ret\n\n");
+                               "    ret\n");
 
     // the call instruction places the return address on the stack itself, so the called function must ensure that the stack it uses is cleaned up before it returns using ret
 
