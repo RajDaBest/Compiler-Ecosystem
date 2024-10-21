@@ -1,0 +1,14 @@
+.text 
+
+_start: 
+
+upush 10 
+upush 18 
+uplus 
+upush 90 
+upush 10 
+uplus 
+native 4 
+halt 
+
+

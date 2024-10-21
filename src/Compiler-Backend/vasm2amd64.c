@@ -8,6 +8,16 @@
 #include <stdbool.h>
 #include <errno.h>
 
+#define alloc 0
+#define free_vm 1
+#define print_f64 2
+#define print_s64 3
+#define print_u64 4
+#define dump_static 5
+#define print_string 6
+#define read 7
+#define write 8
+
 #define TYPE_INVALID ((uint8_t)10)
 #define ERROR_BUFFER_SIZE 256
 
@@ -70,8 +80,33 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
         return false;
     }
 
-    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\n", vm_stack_capacity);
-    fprintf(ctx->program_file, "section .text\nglobal _start\n");
+    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\nprint_u64_buffer: db 20 dup(0), 10\n", vm_stack_capacity);
+
+    fprintf(ctx->program_file, "section .text\nglobal _start\n\n");
+    fprintf(ctx->program_file, "; VASM Library Functions are currently statically linked\n\n");
+
+    // VASM Library functions are linked statically, i.e, they are implemented (resolved) directly into the assembly file
+
+    fprintf(ctx->program_file, "print_u64:\n\n"
+                               "    mov rax, [r15]\n"
+                               "    add r15, 8\n"
+                               "    mov r14, print_u64_buffer + 19\n\n"
+                               "div_loop:\n"
+                               "    xor edx,   edx ; zero rdx before using the division instruction\n"
+                               "    div 10\n"
+                               "    add dl,   48 ; 48 is the ASCII for '0', i added it to convert the numeric digit to it's ASCII equivalent\n"
+                               "    mov byte [r14], dl\n"
+                               "    sub r14,   1\n\n"
+                               "    test rax, rax ; tests if rax is zero\n"
+                               "    jnz  div_loop\n\n"
+                               "    mov rax, 1\n"
+                               "    mov rdi, 1\n"
+                               "    mov rsi, print_u64_buffer\n"
+                               "    mov rdx, 21\n"
+                               "    syscall\n\n"
+                               "    ret\n\n");
+
+    // the call instruction places the return address on the stack itself, so the called function must ensure that the stack it uses is cleaned up before it returns using ret
 
     ctx->code_section_offset = 0;
     ctx->data_section_offset = 0;
@@ -187,37 +222,73 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
     {
     case INST_UPUSH:
     case INST_SPUSH:
-        fprintf(ctx->program_file, "sub r15, 8\n"
-                                   "mov QWORD [r15], %.*s\n",
+        fprintf(ctx->program_file, "    sub r15, 8\n" // r15 is my personal stack pointer
+                                   "    mov QWORD [r15], %.*s\n",
                 (int)operand->count,
                 operand->data);
         break;
     case INST_FPUSH:
         fprintf(ctx->data_file, "L%zu: dq %.*s\n", ctx->l_num,
                 (int)operand->count, operand->data);
-        fprintf(ctx->program_file, "sub r15, 8\n"
-                                   "movsd xmm0, [L%zu]\n"
-                                   "movsd [r15], xmm0\n",
+        fprintf(ctx->program_file, "    sub r15, 8\n"
+                                   "    movsd xmm0, [L%zu]\n"
+                                   "    movsd [r15], xmm0\n",
                 ctx->l_num);
         ctx->l_num++;
         break;
     case INST_HALT:
-        fprintf(ctx->program_file, "mov rax, 60\n"
-                                   "mov rdi, [r15]\n"
-                                   "syscall\n");
+        fprintf(ctx->program_file, "    mov rax, 60\n"
+                                   "    mov rdi, [r15]\n" // the current program exit code is the value at the top of the VM stack
+                                   "    syscall\n");
         break;
     case INST_SPLUS:
     case INST_UPLUS:
-        fprintf(ctx->program_file, "mov rax, [r15]\n"
-                                   "add r15, 8\n"
-                                   "add [r15], rax\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    add [r15], rax\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
         break;
     case INST_FPLUS:
-        fprintf(ctx->program_file, "movsd xmm0, [r15]\n"
-                                   "add r15, 8\n"
-                                   "vaddsd xmm0, [r15]\n"
-                                   "vmovsd [r15], xmm0\n");
+        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vaddsd xmm0, [r15]\n"
+                                   "    vmovsd [r15], xmm0\n");
         break;
+    case INST_NATIVE:
+    {
+        uint8_t lib_function_no = sv_to_unsigned64(operand);
+        switch (lib_function_no)
+        {
+        case alloc:
+            fprintf(ctx->program_file, "    call alloc\n");
+            break;
+        case free_vm:
+            fprintf(ctx->program_file, "    call free\n");
+            break;
+        case print_f64:
+            fprintf(ctx->program_file, "    call print_f64\n");
+            break;
+        case print_s64:
+            fprintf(ctx->program_file, "    call print_s64\n");
+            break;
+        case print_u64:
+            fprintf(ctx->program_file, "    call print_u64\n");
+            break;
+        case dump_static:
+            fprintf(ctx->program_file, "    call dump_static\n");
+            break;
+        case print_string:
+            fprintf(ctx->program_file, "    call print_string\n");
+            break;
+        case read:
+            fprintf(ctx->program_file, "    call read\n");
+            break;
+        case write:
+            fprintf(ctx->program_file, "    call write\n");
+            break;
+        }
+        break;
+    }
+
     default:
         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                  "Line Number %zu -> ERROR: Unknown instruction number %zu",

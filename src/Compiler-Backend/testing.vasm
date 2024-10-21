@@ -1,3 +1,4 @@
+%include <vstdlib.hasm>
 .text
 
 _start:
@@ -6,6 +7,9 @@ _start:
     upush 18
     uplus
     upush 90
+    upush 10
+    uplus
+    native print_u64
     halt
 
     
