@@ -9,12 +9,11 @@ global _start
 ; VASM Library Functions are currently statically linked
 
 print_u64:
-
     mov rax, [r15]
     add r15, 8
     mov r14, print_u64_buffer + 19
-
-    mov r13, 10div_loop:
+    mov r13, 10
+div_loop:
     xor edx,   edx ; zero rdx before using the division instruction
     div r13
     add dl,   48 ; 48 is the ASCII for '0', i added it to convert the numeric digit to it's ASCII equivalent

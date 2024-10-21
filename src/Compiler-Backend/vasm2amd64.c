@@ -87,10 +87,10 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
 
     // VASM Library functions are linked statically, i.e, they are implemented (resolved) directly into the assembly file
 
-    fprintf(ctx->program_file, "print_u64:\n\n"
+    fprintf(ctx->program_file, "print_u64:\n"
                                "    mov rax, [r15]\n"
                                "    add r15, 8\n"
-                               "    mov r14, print_u64_buffer + 19\n\n"
+                               "    mov r14, print_u64_buffer + 19\n"
                                "    mov r13, 10\n"
                                "div_loop:\n"
                                "    xor edx,   edx ; zero rdx before using the division instruction\n"
