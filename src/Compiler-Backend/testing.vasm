@@ -8,6 +8,7 @@ _start:
     uplus
     upush 90
     upush 10
+    upush 20
     uplus
     native print_u64
     halt

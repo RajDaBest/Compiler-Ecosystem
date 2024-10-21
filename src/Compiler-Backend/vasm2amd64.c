@@ -51,7 +51,7 @@ typedef struct
 
 label_hashnode *label_table[MAX_HASHTABLE_SIZE] = {NULL};
 
-// Function proto type
+// function prototypes
 bool init_compiler_context(CompilerContext *ctx, const char *output_file);
 void cleanup_compiler_context(CompilerContext *ctx);
 label_hashnode *search_in_label_table(String_View label);
@@ -62,7 +62,7 @@ bool handle_code_line(CompilerContext *ctx, String_View *line);
 bool handle_data_line(CompilerContext *ctx, String_View *line);
 bool process_source_file(CompilerContext *ctx, const char *input_file);
 
-// Initialize compiler context
+// initialize compiler context
 bool init_compiler_context(CompilerContext *ctx, const char *output_file)
 {
     ctx->program_file = fopen("temp.asm", "w+");
@@ -90,21 +90,25 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
     fprintf(ctx->program_file, "print_u64:\n"
                                "    mov rax, [r15]\n"
                                "    add r15, 8\n"
-                               "    mov r14, print_u64_buffer + 19\n"
+                               "    dec rsp\n"
+                               "    mov byte [rsp], 10\n"
+                               "    mov r14, 1 ; counter\n"
                                "    mov r13, 10\n"
                                "div_loop:\n"
                                "    xor edx,   edx ; zero rdx before using the division instruction\n"
                                "    div r13\n"
                                "    add dl,   48 ; 48 is the ASCII for '0', i added it to convert the numeric digit to it's ASCII equivalent\n"
-                               "    mov byte [r14], dl\n"
-                               "    sub r14,   1\n\n"
+                               "    dec rsp\n"
+                               "    mov byte [rsp], dl\n"
+                               "    inc r14\n\n"
                                "    test rax, rax ; tests if rax is zero\n"
                                "    jnz  div_loop\n\n"
                                "    mov rax, 1\n"
                                "    mov rdi, 1\n"
-                               "    mov rsi, print_u64_buffer\n"
-                               "    mov rdx, 21\n"
+                               "    mov rsi, rsp\n"
+                               "    mov rdx, r14\n"
                                "    syscall\n\n"
+                               "    add rsp, r14; restore the stack to it's previous state\n"
                                "    ret\n");
 
     // the call instruction places the return address on the stack itself, so the called function must ensure that the stack it uses is cleaned up before it returns using ret
