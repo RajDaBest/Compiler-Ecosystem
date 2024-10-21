@@ -224,7 +224,7 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
     case INST_UPUSH:
     case INST_SPUSH:
         fprintf(ctx->program_file, "    sub r15, 8\n" // r15 is my personal stack pointer
-                                   "    mov QWORD [r15], %.*s\n",
+                                   "    mov QWORD [r15], %.*s\n\n",
                 (int)operand->count,
                 operand->data);
         break;
@@ -233,7 +233,7 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
                 (int)operand->count, operand->data);
         fprintf(ctx->program_file, "    sub r15, 8\n"
                                    "    movsd xmm0, [L%zu]\n"
-                                   "    movsd [r15], xmm0\n",
+                                   "    movsd [r15], xmm0\n\n",
                 ctx->l_num);
         ctx->l_num++;
         break;
@@ -246,13 +246,13 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
     case INST_UPLUS:
         fprintf(ctx->program_file, "    mov rax, [r15]\n"
                                    "    add r15, 8\n"
-                                   "    add [r15], rax\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
+                                   "    add [r15], rax\n\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
         break;
     case INST_FPLUS:
         fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
                                    "    add r15, 8\n"
                                    "    vaddsd xmm0, [r15]\n"
-                                   "    vmovsd [r15], xmm0\n");
+                                   "    vmovsd [r15], xmm0\n\n");
         break;
     case INST_NATIVE:
     {
@@ -260,31 +260,31 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         switch (lib_function_no)
         {
         case alloc:
-            fprintf(ctx->program_file, "    call alloc\n");
+            fprintf(ctx->program_file, "    call alloc\n\n");
             break;
         case free_vm:
-            fprintf(ctx->program_file, "    call free\n");
+            fprintf(ctx->program_file, "    call free\n\n");
             break;
         case print_f64:
-            fprintf(ctx->program_file, "    call print_f64\n");
+            fprintf(ctx->program_file, "    call print_f64\n\n");
             break;
         case print_s64:
-            fprintf(ctx->program_file, "    call print_s64\n");
+            fprintf(ctx->program_file, "    call print_s64\n\n");
             break;
         case print_u64:
-            fprintf(ctx->program_file, "    call print_u64\n");
+            fprintf(ctx->program_file, "    call print_u64\n\n");
             break;
         case dump_static:
-            fprintf(ctx->program_file, "    call dump_static\n");
+            fprintf(ctx->program_file, "    call dump_static\n\n");
             break;
         case print_string:
-            fprintf(ctx->program_file, "    call print_string\n");
+            fprintf(ctx->program_file, "    call print_string\n\n");
             break;
         case read:
-            fprintf(ctx->program_file, "    call read\n");
+            fprintf(ctx->program_file, "    call read\n\n");
             break;
         case write:
-            fprintf(ctx->program_file, "    call write\n");
+            fprintf(ctx->program_file, "    call write\n\n");
             break;
         }
         break;
