@@ -33,7 +33,7 @@ div_loop:
     ret
 
 _start:
-mov r15, stack + 8192
+    mov r15, stack + 8192
     sub r15, 8
     mov QWORD [r15], 10
     sub r15, 8
