@@ -8,6 +8,7 @@ spush 0
 and 
 native 3 
 spush 0 
+jmp _start 
 halt 
 
 

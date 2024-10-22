@@ -29,6 +29,12 @@
 // also, the halt instruction returns the control to the OS with the exit code being the stack top; so there should be some stack top
 // before the halt instruction is called; if there is nothing in the VM stack when halt is called, a seg fault will result
 
+// jmp/call instructions in vasm should be used with labels only when converting directly to x86-64 code; they couldve been used with hardcoded unsigned integers that represented the actual instruction number
+// in the source file when these vasm files are run on the vm, but when they are converted directly into x86-64 code, there is a difference; usage with labels is fine
+// and i think i will implement the unsigned integer one now since the jump is directly to a specific instruction number in the vasm code but that will require me to
+// have a label everytime a new vasm instruction begins in the asm code since x86-64 encoding size scheme is a fucking hot garbage mess that i don't give two shits about run; this will just
+// fucking ruin the asm code with labels everywhere; should i do it or not wtf
+
 #define TYPE_INVALID ((uint8_t)10)
 #define ERROR_BUFFER_SIZE 256
 
@@ -266,8 +272,8 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         fprintf(ctx->data_file, "L%zu: dq %.*s\n", ctx->l_num,
                 (int)operand->count, operand->data);
         fprintf(ctx->program_file, "    sub r15, 8\n"
-                                   "    movsd xmm0, [L%zu]\n"
-                                   "    movsd [r15], xmm0\n\n",
+                                   "    vmovsd xmm0, [L%zu]\n"
+                                   "    vmovsd [r15], xmm0\n\n",
                 ctx->l_num);
         ctx->l_num++;
         break;
@@ -283,11 +289,57 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
                                    "    add [r15], rax\n\n"); // stack is the pointer to the stack; stack_top is the pointer to the address of stack top
         break;
     case INST_FPLUS:
-        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+        fprintf(ctx->program_file, "    vmovsd xmm0, [r15]\n"
                                    "    add r15, 8\n"
                                    "    vaddsd xmm0, [r15]\n"
                                    "    vmovsd [r15], xmm0\n\n");
         break;
+
+    case INST_SMINUS:
+    case INST_UMINUS:
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    sub [r15], rax\n\n");
+        break;
+
+    case INST_FMINUS:
+        fprintf(ctx->program_file, "    vmovsd xmm0, [r15 + 8]\n"
+                                   "    vsubsd xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vmovsd [r15], xmm0\n");
+        break;
+
+    case INST_SMULT:
+    case INST_UMULT:
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    imul rax, [r15]\n"
+                                   "    mov qword [r15], rax\n\n");
+        break;
+
+    case INST_FMULT:
+        fprintf(ctx->program_file, "    movsd xmm0, [r15 + 8]\n"
+                                   "    vmulsd xmm0 , xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vmovsd [r15], xmm0\n\n");
+        break;
+
+    case INST_SDIV:
+    case INST_UDIV:
+        fprintf(ctx->program_file, "    mov rax, [r15 + 8]\n"
+                                   "    xor edx, edx\n"
+                                   "    idiv [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    mov qword [r15], rax\n\n");
+        break;
+
+    case INST_FDIV:
+        fprintf(ctx->program_file, "    movsd xmm0, [r15 + 8]\n"
+                                   "    vdivsd xmm0 , xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vmovsd [r15], xmm0\n\n");
+        break;
+
     case INST_NATIVE:
     {
         uint8_t lib_function_no = sv_to_unsigned64(operand);
@@ -534,6 +586,47 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         break;
     }
 
+    case INST_UJMP_IF:
+    {
+        fprintf(ctx->program_file, "    cmp [r15], 0\n"
+                                   "    jne %.*s\n\n",
+                (int)operand->count, operand->data);
+        break;
+    }
+
+    case INST_FJMP_IF:
+    {
+        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                   "    vxorpd xmm1, xmm1 ; bitwise xor the register contents\n"
+                                   "    vucomisd xmm0, xmm1\n ; cmp equivalent for double-precision floating points"
+                                   "    jne %.*s\n\n",
+                (int)operand->count, operand->data);
+    }
+
+    case INST_ASR:
+    {
+        fprintf(ctx->program_file, "    mov cl, %.*s\n"
+                                   "    sar qword [r15], cl\n\n",
+                (int)operand->count, operand->data);
+        break;
+    }
+
+    case INST_LSR:
+    {
+        fprintf(ctx->program_file, "    mov cl, %.*s\n"
+                                   "    shr qword [r15], cl\n\n",
+                (int)operand->count, operand->data);
+        break;
+    }
+
+    case INST_SL:
+    {
+        fprintf(ctx->program_file, "    mov cl, %.*s\n"
+                                   "    shl qword [r15], cl\n\n",
+                (int)operand->count, operand->data);
+        break;
+    }
+
     default:
         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                  "Line Number %zu -> ERROR: Unknown instruction number %zu",
@@ -744,21 +837,17 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
             }
             case TYPE_UNSIGNED_64INT:
             {
-                if (operand_type == TYPE_UNSIGNED_64INT)
+                if (i == INST_CALL || i == INST_JMP || i == INST_FJMP_IF || i == INST_UJMP_IF)
                 {
-                    if (!handle_instruction(ctx, i, line))
+                    if (operand_type != TYPE_INVALID)
+                    {
+                        snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
+                                 "Line Number %zu -> ERROR: illegal operand value for %s instruction: %.*s\n"
+                                 "Must be a label",
+                                 ctx->line_no, get_inst_name(i), (int)line->count, line->data);
                         return false;
-                }
-                else if (operand_type == TYPE_DOUBLE || operand_type == TYPE_SIGNED_64INT)
-                {
-                    snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
-                             "Line Number %zu -> ERROR: illegal operand value for %s instruction: %.*s\n"
-                             "Must be an unsigned integral value",
-                             ctx->line_no, get_inst_name(i), (int)line->count, line->data);
-                    return false;
-                }
-                else if (operand_type == TYPE_INVALID)
-                {
+                    }
+
                     if (ctx->unresolved_labels_counter >= VM_LABEL_CAPACITY)
                     {
                         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
@@ -770,10 +859,36 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                     ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
                     ctx->unresolved_labels_counter++;
 
-                    if (i == INST_CALL || i == INST_JMP || i == INST_FJMP_IF || i == INST_UJMP_IF)
+                    if (!handle_instruction(ctx, i, line))
+                        return false;
+                }
+                else
+                {
+                    if (operand_type == TYPE_UNSIGNED_64INT)
                     {
                         if (!handle_instruction(ctx, i, line))
                             return false;
+                    }
+                    else if (operand_type == TYPE_DOUBLE || operand_type == TYPE_SIGNED_64INT)
+                    {
+                        snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
+                                 "Line Number %zu -> ERROR: illegal operand value for %s instruction: %.*s\n"
+                                 "Must be an unsigned integral value",
+                                 ctx->line_no, get_inst_name(i), (int)line->count, line->data);
+                        return false;
+                    }
+                    else if (operand_type == TYPE_INVALID)
+                    {
+                        if (ctx->unresolved_labels_counter >= VM_LABEL_CAPACITY)
+                        {
+                            snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
+                                     "Line Number %zu -> ERROR: Too many unresolved labels",
+                                     ctx->line_no);
+                            return false;
+                        }
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].label = *line;
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
+                        ctx->unresolved_labels_counter++;
                     }
                 }
                 return true;

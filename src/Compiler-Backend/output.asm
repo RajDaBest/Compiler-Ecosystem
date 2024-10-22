@@ -72,6 +72,9 @@ _start:
     sub r15, 8
     mov QWORD [r15], 0
 
+    jmp _start
+
+    mov r15, stack + 8192
     mov rax, 60
     mov rdi, [r15]
     syscall

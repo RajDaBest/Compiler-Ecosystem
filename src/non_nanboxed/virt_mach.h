@@ -145,9 +145,9 @@ typedef enum
     INST_LSR, // logical shift right; for unsigned
     INST_ASR, // arithmetic shift right;  for signed
     INST_SL,  // shift left; for both signed and unsigned
-    INST_AND,
-    INST_OR,
-    INST_NOT,
+    INST_ANDB,
+    INST_ORB,
+    INST_NOTB,
     INST_EMPTY,
     INST_POP_AT,
     INST_POP,
@@ -340,11 +340,11 @@ const char *get_inst_name(Inst_Type inst)
         return "asr";
     case INST_SL:
         return "sl";
-    case INST_AND:
+    case INST_ANDB:
         return "and";
-    case INST_OR:
+    case INST_ORB:
         return "or";
-    case INST_NOT:
+    case INST_NOTB:
         return "not";
     case INST_EMPTY:
         return "empty";
@@ -1271,23 +1271,23 @@ static int handle_rdup(VirtualMachine *vm, Inst inst)
 
 static int handle_bitwise(VirtualMachine *vm, Inst inst)
 {
-    if (vm->stack_size < (inst.type == INST_NOT ? 1 : 2))
+    if (vm->stack_size < (inst.type == INST_NOTB ? 1 : 2))
         return TRAP_STACK_UNDERFLOW;
 
     /*     bool both_nan = is_nan(vm->stack[vm->stack_size - 1]) &&
-                        (inst.type == INST_NOT || is_nan(vm->stack[vm->stack_size - 2])); */
+                        (inst.type == INST_NOTB || is_nan(vm->stack[vm->stack_size - 2])); */
 
     /* if (both_nan)
     { */
     switch (inst.type)
     {
-    case INST_AND:
+    case INST_ANDB:
         BINARY_OP(u64, u64, &);
         break;
-    case INST_OR:
+    case INST_ORB:
         BINARY_OP(u64, u64, |);
         break;
-    case INST_NOT:
+    case INST_NOTB:
         vm->stack[vm->stack_size - 1]._as_u64 = ~(vm->stack[vm->stack_size - 1]._as_u64);
         break;
     default:
@@ -1295,17 +1295,17 @@ static int handle_bitwise(VirtualMachine *vm, Inst inst)
     }
     /*    }
    }
-   else if (!is_nan(vm->stack[vm->stack_size - 1]) && (inst.type == INST_NOT || !is_nan(vm->stack[vm->stack_size - 2])))
+   else if (!is_nan(vm->stack[vm->stack_size - 1]) && (inst.type == INST_NOTB || !is_nan(vm->stack[vm->stack_size - 2])))
    {
        switch (inst.type)
        {
-       case INST_AND:
+       case INST_ANDB:
            result = a & b;
            break;
-       case INST_OR:
+       case INST_ORB:
            result = a | b;
            break;
-       case INST_NOT:
+       case INST_NOTB:
            result = ~a;
            break;
        default:
@@ -1317,7 +1317,7 @@ static int handle_bitwise(VirtualMachine *vm, Inst inst)
         return TRAP_ILLEGAL_OPERATION;
     } */
 
-    if (inst.type != INST_NOT)
+    if (inst.type != INST_NOTB)
         vm->stack_size--;
     vm->instruction_pointer++;
     return TRAP_OK;
@@ -1414,9 +1414,9 @@ int vm_execute_at_inst_pointer(VirtualMachine *vm)
     case INST_RDUP:
         return handle_rdup(vm, inst);
 
-    case INST_AND:
-    case INST_OR:
-    case INST_NOT:
+    case INST_ANDB:
+    case INST_ORB:
+    case INST_NOTB:
         return handle_bitwise(vm, inst);
     case INST_EMPTY:
         return handle_empty(vm);

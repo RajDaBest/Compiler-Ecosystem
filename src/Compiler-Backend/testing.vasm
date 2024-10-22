@@ -9,6 +9,7 @@ _start:
     and
     native print_s64
     spush 0
+    jmp _start
     halt
 
     
