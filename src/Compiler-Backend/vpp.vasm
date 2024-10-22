@@ -1,10 +1,21 @@
 .text 
 
+hello: 
+
+upush 10 
+upush 20 
+uplus 
+ret 
+
 _start: 
 
 spush -9 
 spush 10 
 aswap 1 
+call hello
+rdup 1
+rdup 2
+adup 0
 native 3 
 halt 
 

@@ -338,6 +338,44 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         break;
     }
 
+    case INST_RDUP:
+    {
+        uint64_t operand_conv = sv_to_unsigned64(operand);
+        fprintf(ctx->program_file, "    mov rax, qword [r15 + %llu]\n"
+                                   "    sub r15, 8\n"
+                                   "    mov [r15], rax\n",
+                (operand_conv) * 8);
+        break;
+    }
+
+    case INST_ADUP:
+    {
+        uint64_t operand_conv = sv_to_unsigned64(operand);
+        fprintf(ctx->program_file, "    mov rax, qword [stack + 8184 - %llu]\n"
+                                   "    sub r15, 8\n"
+                                   "    mov [r15], rax\n",
+                (operand_conv) * 8);
+        break;
+    }
+
+    case INST_JMP:
+    {
+        fprintf(ctx->program_file, "    jmp %.*s\n", (int)operand->count, operand->data);
+        break;
+    }
+
+    case INST_CALL:
+    {
+        fprintf(ctx->program_file, "    call %.*s\n", (int)operand->count, operand->data);
+        break;
+    }
+
+    case INST_RET:
+    {
+        fprintf(ctx->program_file, "    ret\n");
+        break;
+    }
+
     default:
         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                  "Line Number %zu -> ERROR: Unknown instruction number %zu",
@@ -573,6 +611,12 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                     ctx->unresolved_labels[ctx->unresolved_labels_counter].label = *line;
                     ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
                     ctx->unresolved_labels_counter++;
+
+                    if (i == INST_CALL || i == INST_JMP || i == INST_FJMP_IF || i == INST_UJMP_IF)
+                    {
+                        if (!handle_instruction(ctx, i, line))
+                            return false;
+                    }
                 }
                 return true;
             }
