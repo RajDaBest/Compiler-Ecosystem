@@ -27,6 +27,9 @@
 #define TYPE_INVALID ((uint8_t)10)
 #define ERROR_BUFFER_SIZE 256
 
+#define PROG_TEXT(inst) fprintf(ctx->program_file, "    "##inst "\n")
+#define PROG_DATA(inst) fprintf(ctx->data_file, "   "##inst "\n")
+
 typedef struct label_hashnode_
 {
     String_View label;
@@ -322,7 +325,7 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         fprintf(ctx->program_file, "    mov rax, qword [r15 + %llu]\n"
                                    "    mov rbx, [r15]\n"
                                    "    mov [r15 + %llu], rbx\n"
-                                   "    mov [r15], rax\n",
+                                   "    mov [r15], rax\n\n",
                 (operand_conv) * 8, (operand_conv) * 8);
         break;
     }
@@ -333,7 +336,7 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         fprintf(ctx->program_file, "    mov rax, [stack + 8184 - %llu]\n"
                                    "    mov rbx, [r15]\n"
                                    "    mov [stack + 8184 - %llu], rbx\n"
-                                   "    mov [r15], rax\n",
+                                   "    mov [r15], rax\n\n",
                 (operand_conv) * 8, (operand_conv) * 8);
         break;
     }
@@ -343,7 +346,7 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         uint64_t operand_conv = sv_to_unsigned64(operand);
         fprintf(ctx->program_file, "    mov rax, qword [r15 + %llu]\n"
                                    "    sub r15, 8\n"
-                                   "    mov [r15], rax\n",
+                                   "    mov [r15], rax\n\n",
                 (operand_conv) * 8);
         break;
     }
@@ -353,26 +356,153 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         uint64_t operand_conv = sv_to_unsigned64(operand);
         fprintf(ctx->program_file, "    mov rax, qword [stack + 8184 - %llu]\n"
                                    "    sub r15, 8\n"
-                                   "    mov [r15], rax\n",
+                                   "    mov [r15], rax\n\n",
                 (operand_conv) * 8);
         break;
     }
 
     case INST_JMP:
     {
-        fprintf(ctx->program_file, "    jmp %.*s\n", (int)operand->count, operand->data);
+        fprintf(ctx->program_file, "    jmp %.*s\n\n", (int)operand->count, operand->data);
         break;
     }
 
     case INST_CALL:
     {
-        fprintf(ctx->program_file, "    call %.*s\n", (int)operand->count, operand->data);
+        fprintf(ctx->program_file, "    call %.*s\n\n", (int)operand->count, operand->data);
         break;
     }
 
     case INST_RET:
     {
-        fprintf(ctx->program_file, "    ret\n");
+        fprintf(ctx->program_file, "    ret\n\n");
+        break;
+    }
+
+    case INST_EQU:
+    case INST_EQS:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]"
+                                   "    setz byte [r15]\n\n");
+        break;
+    }
+
+    case INST_GEU:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    setae byte [r15]\n\n");
+        break;
+    }
+
+    case INST_GES:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    setge byte [r15]\n\n");
+        break;
+    }
+
+    case INST_GU:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    seta byte [r15]\n\n");
+        break;
+    }
+
+    case INST_GS:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    setg byte [r15]\n\n");
+        break;
+    }
+
+    case INST_LEU:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    setbe byte [r15]\n\n");
+        break;
+    }
+
+    case INST_LES:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    setle byte [r15]\n\n");
+        break;
+    }
+
+    case INST_LU:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    setb byte [r15]\n\n");
+        break;
+    }
+
+    case INST_LS:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    cmp rax, [r15]\n"
+                                   "    setl byte [r15]\n\n");
+        break;
+    }
+
+    case INST_EQF:
+    {
+        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vucomisd xmm0, [r15]\n"
+                                   "    setz byte [r15]\n");
+        break;
+    }
+
+    case INST_GEF:
+    {
+        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vucomisd xmm0, [r15]\n"
+                                   "    setae byte [r15]\n");
+        break;
+    }
+
+    case INST_LEF:
+    {
+        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vucomisd xmm0, [r15]\n"
+                                   "    setbe byte [r15]\n");
+        break;
+    }
+
+    case INST_GF:
+    {
+        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vucomisd xmm0, [r15]\n"
+                                   "    seta byte [r15]\n");
+        break;
+    }
+
+    case INST_LF:
+    {
+        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    vucomisd xmm0, [r15]\n"
+                                   "    setb byte [r15]\n");
         break;
     }
 

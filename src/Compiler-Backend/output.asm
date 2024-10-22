@@ -82,6 +82,7 @@ _start:
     call hello
     mov rax, qword [r15 + 8]
     sub r15, 8
+    vucomisd xmm0, [r15]
     mov [r15], rax
     mov rax, qword [r15 + 16]
     sub r15, 8
