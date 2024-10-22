@@ -18,6 +18,12 @@
 #define read 7
 #define write 8
 
+// the swap instruction basically converts the top of the VM stack into an implicit register; we can bring any value in the stack to the top of the
+// stack (the implicit register) using swap and work on it and put it right back into it's original place using swap again.
+
+// the thing is, i did not put any fucking checks on instruction operands that help access some VM stack memory to detect stack overflow/underflows and all
+// like i did when a .vasm file converts to VM bytecode and runs on the VM; this prolly doesn't matter since this is how actual assembly is
+
 #define TYPE_INVALID ((uint8_t)10)
 #define ERROR_BUFFER_SIZE 256
 
@@ -307,6 +313,28 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
             fprintf(ctx->program_file, "    call write\n\n");
             break;
         }
+        break;
+    }
+
+    case INST_RSWAP:
+    {
+        uint64_t operand_conv = sv_to_unsigned64(operand);
+        fprintf(ctx->program_file, "    mov rax, qword [r15 + %llu]\n"
+                                   "    mov rbx, [r15]\n"
+                                   "    mov [r15 + %llu], rbx\n"
+                                   "    mov [r15], rax\n",
+                (operand_conv) * 8, (operand_conv) * 8);
+        break;
+    }
+
+    case INST_ASWAP:
+    {
+        uint64_t operand_conv = sv_to_unsigned64(operand);
+        fprintf(ctx->program_file, "    mov rax, [stack + 8184 - %llu]\n"
+                                   "    mov rbx, [r15]\n"
+                                   "    mov [stack + 8184 - %llu], rbx\n"
+                                   "    mov [r15], rax\n",
+                (operand_conv) * 8, (operand_conv) * 8);
         break;
     }
 

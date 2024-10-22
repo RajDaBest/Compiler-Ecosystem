@@ -1,7 +1,6 @@
 section .bss
 stack: resq 1024
 section .data
-print_u64_buffer: db 20 dup(0), 10
 
 section .text
 global _start
@@ -59,34 +58,15 @@ write:
 _start:
     mov r15, stack + 8192
     sub r15, 8
-    mov QWORD [r15], 10
-
-    sub r15, 8
-    mov QWORD [r15], 18
-
-    mov rax, [r15]
-    add r15, 8
-    add [r15], rax
-
-    sub r15, 8
-    mov QWORD [r15], 90
+    mov QWORD [r15], -9
 
     sub r15, 8
     mov QWORD [r15], 10
 
-    sub r15, 8
-    mov QWORD [r15], 20
-
-    sub r15, 8
-    mov QWORD [r15], -10
-
-    sub r15, 8
-    mov QWORD [r15], -30
-
-    mov rax, [r15]
-    add r15, 8
-    add [r15], rax
-
+    mov rax, [stack + 8184 - 8]
+    mov rbx, [r15]
+    mov [stack + 8184 - 8], rbx
+    mov [r15], rax
     call print_number
 
     mov rax, 60

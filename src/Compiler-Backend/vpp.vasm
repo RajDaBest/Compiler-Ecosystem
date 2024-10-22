@@ -2,15 +2,9 @@
 
 _start: 
 
-upush 10 
-upush 18 
-uplus 
-upush 90 
-upush 10 
-upush 20 
-spush -10 
-spush -30 
-splus 
+spush -9 
+spush 10 
+aswap 1 
 native 3 
 halt 
 
