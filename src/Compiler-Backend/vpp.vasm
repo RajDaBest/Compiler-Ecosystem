@@ -7,8 +7,11 @@ upush 18
 uplus 
 upush 90 
 upush 10 
-uplus 
-native 4 
+upush 20 
+spush -10 
+spush -30 
+splus 
+native 3 
 halt 
 
 

@@ -9,8 +9,10 @@ _start:
     upush 90
     upush 10
     upush 20
-    uplus
-    native print_u64
+    spush -10
+    spush -30
+    splus
+    native print_s64
     halt
 
     
