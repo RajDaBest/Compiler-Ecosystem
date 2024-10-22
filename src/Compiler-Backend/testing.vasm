@@ -1,20 +1,14 @@
 %include <vstdlib.hasm>
 .text
 
-hello:
-
-    upush 10
-    upush 20
-    uplus
-    ret
 
 _start:
 
-    spush -9
-    spush 10
-    aswap 1
-    jmp hello
+    spush 1
+    spush 0
+    and
     native print_s64
+    spush 0
     halt
 
     

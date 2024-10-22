@@ -24,6 +24,11 @@
 // the thing is, i did not put any fucking checks on instruction operands that help access some VM stack memory to detect stack overflow/underflows and all
 // like i did when a .vasm file converts to VM bytecode and runs on the VM; this prolly doesn't matter since this is how actual assembly is
 
+// so, the halt instruction is required, otherwise the code will give seg fault since exit system call is needed to return control back to the
+// OS after there are no instructions left to execute (seg fault occurs since memory beyond the last instruction is accessed when the program does not exit)
+// also, the halt instruction returns the control to the OS with the exit code being the stack top; so there should be some stack top
+// before the halt instruction is called; if there is nothing in the VM stack when halt is called, a seg fault will result
+
 #define TYPE_INVALID ((uint8_t)10)
 #define ERROR_BUFFER_SIZE 256
 
@@ -502,7 +507,30 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
                                    "    add r15, 8\n"
                                    "    vucomisd xmm0, [r15]\n"
-                                   "    setb byte [r15]\n");
+                                   "    setb byte [r15]\n\n");
+        break;
+    }
+
+    case INST_NOTB:
+    {
+        fprintf(ctx->program_file, "    not qword [r15]\n\n");
+        break;
+    }
+
+    case INST_ANDB:
+    {
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    and [r15], rax\n\n");
+        break;
+    }
+
+    case INST_ORB:
+    {
+
+        fprintf(ctx->program_file, "    mov rax, [r15]\n"
+                                   "    add r15, 8\n"
+                                   "    or [r15], rax\n\n");
         break;
     }
 

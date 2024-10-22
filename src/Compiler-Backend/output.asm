@@ -55,42 +55,22 @@ write:
 
     add rsp, r14 ; restore the stack pointer
     ret
-hello:
-    sub r15, 8
-    mov QWORD [r15], 10
-
-    sub r15, 8
-    mov QWORD [r15], 20
-
-    mov rax, [r15]
-    add r15, 8
-    add [r15], rax
-
-    ret
 _start:
     mov r15, stack + 8192
     sub r15, 8
-    mov QWORD [r15], -9
+    mov QWORD [r15], 1
 
     sub r15, 8
-    mov QWORD [r15], 10
+    mov QWORD [r15], 0
 
-    mov rax, [stack + 8184 - 8]
-    mov rbx, [r15]
-    mov [stack + 8184 - 8], rbx
-    mov [r15], rax
-    call hello
-    mov rax, qword [r15 + 8]
-    sub r15, 8
-    vucomisd xmm0, [r15]
-    mov [r15], rax
-    mov rax, qword [r15 + 16]
-    sub r15, 8
-    mov [r15], rax
-    mov rax, qword [stack + 8184 - 0]
-    sub r15, 8
-    mov [r15], rax
+    mov rax, [r15]
+    add r15, 8
+    and [r15], rax
+
     call print_number
+
+    sub r15, 8
+    mov QWORD [r15], 0
 
     mov rax, 60
     mov rdi, [r15]
