@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <getopt.h>
 
 #define alloc 0
 #define free_vm 1
@@ -36,6 +37,8 @@ size_t call_no = 0;
 // and i think i will implement the unsigned integer one now since the jump is directly to a specific instruction number in the vasm code but that will require me to
 // have a label everytime a new vasm instruction begins in the asm code since x86-64 encoding size scheme is a fucking hot garbage mess that i don't give two shits about run; this will just
 // fucking ruin the asm code with labels everywhere; should i do it or not wtf
+
+// there is no bounds checking for pushing and popping off the stack; doing so out of bounds will just return a seg fault from the OS
 
 #define TYPE_INVALID ((uint8_t)10)
 #define ERROR_BUFFER_SIZE 256
@@ -160,7 +163,7 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
     ctx->l_num = 0;
     ctx->unresolved_labels_counter = 0;
 
-    ctx->unresolved_labels = malloc(sizeof(unresolved_label_) * VM_LABEL_CAPACITY);
+    ctx->unresolved_labels = malloc(sizeof(unresolved_label_) * label_capacity);
     if (!ctx->unresolved_labels)
     {
         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE, "Failed to allocate memory for unresolved labels");
@@ -609,6 +612,7 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
                                    "    vucomisd xmm0, xmm1\n ; cmp equivalent for double-precision floating points"
                                    "    jne %.*s\n\n",
                 (int)operand->count, operand->data);
+        break;
     }
 
     case INST_ASR:
@@ -836,7 +840,7 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                 }
                 else if (operand_type == TYPE_INVALID)
                 {
-                    if (ctx->unresolved_labels_counter >= VM_LABEL_CAPACITY)
+                    if (ctx->unresolved_labels_counter >= label_capacity)
                     {
                         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                                  "Line Number %zu -> ERROR: Too many unresolved labels",
@@ -862,7 +866,7 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                         return false;
                     }
 
-                    if (ctx->unresolved_labels_counter >= VM_LABEL_CAPACITY)
+                    if (ctx->unresolved_labels_counter >= label_capacity)
                     {
                         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                                  "Line Number %zu -> ERROR: Too many unresolved labels",
@@ -893,7 +897,7 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                     }
                     else if (operand_type == TYPE_INVALID)
                     {
-                        if (ctx->unresolved_labels_counter >= VM_LABEL_CAPACITY)
+                        if (ctx->unresolved_labels_counter >= label_capacity)
                         {
                             snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                                      "Line Number %zu -> ERROR: Too many unresolved labels",
@@ -911,7 +915,7 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
             {
                 if (operand_type == TYPE_INVALID)
                 {
-                    if (ctx->unresolved_labels_counter >= VM_LABEL_CAPACITY)
+                    if (ctx->unresolved_labels_counter >= label_capacity)
                     {
                         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                                  "Line Number %zu -> ERROR: Too many unresolved labels",
@@ -1028,27 +1032,78 @@ bool process_source_file(CompilerContext *ctx, const char *input_file)
     return true;
 }
 
+void print_usage(char *program_name)
+{
+    fprintf(stderr, "Usage: %s <input_file> <output_file> [OPTIONS]\n", program_name);
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  --stack-capacity <bytes>     Set the VM stack capacity in bytes (default: %llu)\n", VM_STACK_CAPACITY);
+    fprintf(stderr, "  --label-capacity <bytes>     Set the label capacity for the program in bytes (default: %llu)\n", VM_LABEL_CAPACITY);
+    fprintf(stderr, "  --static-limit <bytes>       Set the static memory limit in bytes (default: %llu)\n", VM_MEMORY_CAPACITY);
+    fprintf(stderr, "  --default-static <bytes>     Set the default static memory size in bytes (default: %llu)\n", VM_DEFAULT_MEMORY_SIZE);
+    fprintf(stderr, "\n");
+}
+
 int main(int argc, char **argv)
 {
-    if (argc != 3)
+    static struct option long_options[] = {
+        {"stack-capacity", required_argument, 0, 0},
+        {"label-capacity", required_argument, 0, 0},
+        {"static-limit", required_argument, 0, 0},
+        {"default-static", required_argument, 0, 0},
+        {0, 0, 0, 0}};
+
+    int option_index = 0;
+    int c;
+
+    while ((c = getopt_long(argc, argv, "", long_options, &option_index)) != -1)
     {
-        fprintf(stderr, "Usage: %s <input_file> <output_file>\n", argv[0]);
+        switch (option_index)
+        {
+        case 0:
+            vm_stack_capacity = strtoul(optarg, NULL, 10);
+            break;
+        case 1:
+            label_capacity = strtoul(optarg, NULL, 10);
+            break;
+        case 2:
+            vm_memory_capacity = strtoul(optarg, NULL, 10);
+            break;
+        case 3:
+            vm_default_memory_size = strtoul(optarg, NULL, 10);
+            break;
+        default:
+            print_usage(argv[0]);
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (optind + 2 > argc)
+    {
+        print_usage(argv[0]);
         return EXIT_FAILURE;
     }
 
+    char *input_file = argv[optind];
+    char *output_file = argv[optind + 1];
+
+    assert(vm_program_capacity <= UINT64_MAX);
+    assert(vm_memory_capacity <= UINT64_MAX);
+    assert(vm_stack_capacity <= UINT64_MAX);
+    assert(vm_default_memory_size < vm_memory_capacity);
+
     CompilerContext ctx = {0};
-    if (!init_compiler_context(&ctx, argv[2]))
+    if (!init_compiler_context(&ctx, output_file))
     {
         fprintf(stderr, "Initialization failed: %s\n", ctx.error_buffer);
         return EXIT_FAILURE;
     }
 
-    if (!process_source_file(&ctx, argv[1]))
+    if (!process_source_file(&ctx, input_file))
     {
         fprintf(stderr, "Compilation failed: %s\n", ctx.error_buffer);
         cleanup_compiler_context(&ctx);
         remove("temp.asm");
-        remove(argv[2]);
+        remove(output_file);
         return EXIT_FAILURE;
     }
 

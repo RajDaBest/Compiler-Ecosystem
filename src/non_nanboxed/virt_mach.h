@@ -50,9 +50,9 @@
         vm->stack[vm->stack_size - 2]._as_##out = vm->stack[vm->stack_size - 2]._as_##in op vm->stack[vm->stack_size - 1]._as_##in; \
     } while (false)
 
-#define CONV_OP(in, out)                                                                   \
-    do                                                                                     \
-    {                                                                                      \
+#define CONV_OP(in, out)                                                                  \
+    do                                                                                    \
+    {                                                                                     \
         vm->stack[vm->stack_size - 1]._as_##out = vm->stack[vm->stack_size - 1]._as_##in; \
     } while (false)
 // relying on automatic type converisons
@@ -153,8 +153,8 @@ typedef enum
     INST_POP,
     INST_RSWAP,
     INST_ASWAP,
-    INST_RET,
-    INST_CALL,
+    INST_RET,  // jumps to the VM instruction address on the top of the stack and removes that address from the stack top
+    INST_CALL, // pushes the address of the next VM instruction on the VM stack and jumps to the specified instruction
     INST_NATIVE,
     INST_STORE8, // write the raw bytes on the stack onto the memory locations
     INST_STORE16,

@@ -12,7 +12,7 @@ nan_vpp: src/nan_boxed/vpp.c
 	gcc $(CFLAGS) -o ./bin/vpp src/nan_boxed/vpp.c $(LIBS)
 
 nan_clean:
-	rm -f ./bin/nanboxed/nan_virtmach ./bin/nanboxed/nan_devasm ./bin/nanboxed/nan_vpp
+	rm -f ./bin/nanboxed/nan_virtmach ./bin/nanboxed/nan_devasm ./bin/nanboxed/nan_vpp ./bin/compiler/vtx
 
 clean:
 
@@ -26,4 +26,7 @@ devasm: src/non_nanboxed/devasm.c
 	
 vpp: src/non_nanboxed/vpp.c
 		gcc $(CFLAGS) -o ./bin/non_nanboxed/vpp src/non_nanboxed/vpp.c $(LIBS)
+
+compiler: src/Compiler-Backend/vasm2amd64.c 
+		gcc $(CFLAGS) -o ./bin/compiler/vtx src/Compiler-Backend/vasm2amd64.c $(LIBS)
 
