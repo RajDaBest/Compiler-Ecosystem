@@ -1,16 +1,15 @@
-%include <vstdlib.hasm>
-.text
+.text 
 _start: 
 upush 10 
-upush 0
-native print_u64 
+upush 0 
+native 4 
 upush 1 
-native print_u64 
+native 4 
 loop_one: 
 rdup 1 
 rdup 1 
 uplus 
-native print_u64 
+native 4 
 adup 0 
 upush 1 
 uminus 

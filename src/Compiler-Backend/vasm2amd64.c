@@ -599,7 +599,7 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
 
     case INST_UJMP_IF:
     {
-        fprintf(ctx->program_file, "    cmp [r15], 0\n"
+        fprintf(ctx->program_file, "    cmp qword [r15], 0\n"
                                    "    jne %.*s\n\n",
                 (int)operand->count, operand->data);
         break;
