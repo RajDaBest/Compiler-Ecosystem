@@ -18,6 +18,8 @@
 #define read 7
 #define write 8
 
+size_t call_no = 0;
+
 // the swap instruction basically converts the top of the VM stack into an implicit register; we can bring any value in the stack to the top of the
 // stack (the implicit register) using swap and work on it and put it right back into it's original place using swap again.
 
@@ -426,13 +428,19 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
 
     case INST_CALL:
     {
-        fprintf(ctx->program_file, "    call %.*s\n\n", (int)operand->count, operand->data);
+        fprintf(ctx->program_file, "    sub r15, 8\n"
+                                   "    mov qword [r15], call_%d\n"
+                                   "    jmp %.*s\n"
+                                   "call_%d:\n"
+                                   "    add r15, 8\n\n",
+                call_no, (int)operand->count, operand->data, call_no);
+        call_no++;
         break;
     }
 
     case INST_RET:
     {
-        fprintf(ctx->program_file, "    ret\n\n");
+        fprintf(ctx->program_file, "    jmp [r15]\n\n");
         break;
     }
 
@@ -624,6 +632,12 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
         fprintf(ctx->program_file, "    mov cl, %.*s\n"
                                    "    shl qword [r15], cl\n\n",
                 (int)operand->count, operand->data);
+        break;
+    }
+
+    case INST_POP:
+    {
+        fprintf(ctx->program_file, "    add r15, 8\n\n");
         break;
     }
 

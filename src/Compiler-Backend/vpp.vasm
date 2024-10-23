@@ -1,14 +1,19 @@
-.text 
+.text
 
+hello:
 
-_start: 
+    upush 100
+    upush 80
+    uplus 
+    pop 
+    ret
 
-spush 1 
-spush 0 
-and 
-native 3 
-spush 0 
-jmp _start 
-halt 
+_start:
+
+    upush 10
+    upush 12
+    call hello
+    native 4
+    halt
 
 
