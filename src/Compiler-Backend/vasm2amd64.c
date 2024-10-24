@@ -105,7 +105,7 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
         return false;
     }
 
-    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\nmul_num: dq 1000000.0\nfloating_point: db \".\"\n", vm_stack_capacity);
+    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\nmul_num: dq 100000000.0\nfloating_point: db \".\"\n", vm_stack_capacity);
 
     fprintf(ctx->program_file, "section .text\nglobal _start\n\n");
     fprintf(ctx->program_file, "; VASM Library Functions are currently statically linked\n\n");

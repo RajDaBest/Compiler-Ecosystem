@@ -1,3 +1,16 @@
+section .bss
+stack: resq 1024
+section .data
+mul_num: dq 100000000.0
+floating_point: db "."
+L0: dq 10.893455
+L1: dq 13.344324
+
+section .text
+global _start
+
+; VASM Library Functions are currently statically linked
+
 print_num_rax:
     cmp rax, 0
     jnl is_non_negative
@@ -51,7 +64,7 @@ print_f64:
     vcvtsd2si rbx, xmm1 ; rbx contains the fractional part
 
     cmp rbx, 0
-    jge skip_neg_frac ; handle if the fractional part comes out to be negative by the virtue of the number being negative
+    jge skip_neg_frac
     neg rbx
 skip_neg_frac:
     mov r11, 1
@@ -68,3 +81,25 @@ skip_neg_frac:
     call print_num_rax
     
     ret
+_start:
+    mov r15, stack + 8192
+    sub r15, 8
+    vmovsd xmm0, [L0]
+    vmovsd [r15], xmm0
+
+    sub r15, 8
+    vmovsd xmm0, [L1]
+    vmovsd [r15], xmm0
+
+    vmovsd xmm0, [r15 + 8]
+    vsubsd xmm0, [r15]
+    add r15, 8
+    vmovsd [r15], xmm0
+    call print_f64
+
+    sub r15, 8
+    mov QWORD [r15], 0
+
+    mov rax, 60
+    mov rdi, [r15]
+    syscall
