@@ -181,7 +181,7 @@ make nan_clean
 
 - **Execution Control**:
   - `--limit <n>`: Limit instruction count
-  - `--debug`: Enable debug output
+  - `--debug`: Enable step-debugging; Instructions in the source code are executed one-by-one by pressing return
 
 - **Preprocessor Options**:
   - `--save-vpp [file]`: Save preprocessed output
