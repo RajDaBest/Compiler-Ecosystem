@@ -1,8 +1,4 @@
-# Self-Made Virtual Machine
-
-## Introduction
-
-The# Compiler Ecosystem
+# Compiler Ecosystem
 
 The Compiler Ecosystem is a comprehensive toolchain designed for converting VASM (Virtual Assembly) code into executable binaries, along with providing a virtual machine and disassembler for bytecode management. This repository encompasses various components aimed at streamlining the development and execution of VASM programs.
 
