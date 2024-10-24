@@ -131,7 +131,7 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
     }
 
     fclose(native_print);
-    
+
     fprintf(ctx->program_file, "\n");
 
     // the call instruction places the return address on the stack itself, so the called function must ensure that the stack it uses is cleaned up before it returns using ret
@@ -342,10 +342,12 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
             fprintf(ctx->program_file, "    call print_f64\n\n");
             break;
         case print_s64:
-            fprintf(ctx->program_file, "    call print_number\n\n");
+            fprintf(ctx->program_file, "    mov r11, 0\n"
+                                       "    call print_number\n\n");
             break;
         case print_u64:
-            fprintf(ctx->program_file, "    call print_number\n\n");
+            fprintf(ctx->program_file, "    mov r11, 0\n"
+                                       "    call print_number\n\n");
             break;
         case dump_static:
             fprintf(ctx->program_file, "    call dump_static\n\n");
