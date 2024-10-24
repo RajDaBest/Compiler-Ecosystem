@@ -194,44 +194,66 @@ make nan_clean
 
 Converts VM bytecode back to human-readable VASM format.
 
-### VASM Preprocessor (`vpp`)
+# VPP (VASM Preprocessor)
+
+## Overview
+VPP is the preprocessor for VASM files, providing macro capabilities, file inclusion, and conditional compilation features.
+
+## Features
+
+### Include System
+- Syntax: `%include "filename"`
+- Supports recursive include resolution
+- Library path searching via `--lib` option
+- Environment variable `VLIB` for standard library location
+
+### Macro System
+- Define macros: `%define MACRO_NAME value`
+- Macro expansion in code
+- Support for nested macros
+- Complex macro definitions with parameters
+
+### Conditional Compilation
+```vasm
+%ifdef MACRO_NAME
+    ; code when MACRO_NAME is defined
+%else
+    ; code when MACRO_NAME is not defined
+%endif
+
+%ifndef MACRO_NAME
+    ; code when MACRO_NAME is not defined
+%endif
+```
+
+### Command Line Usage
 ```bash
 vpp [OPTIONS] <input_file> [output_file]
 ```
-Configure the environment variable VLIB in your bash session to have the path to the
-VASM standard library file.
 
-#### VPP Options:
-- **Library Management**:
-  - `--lib <path>`: Add library search path(s)
-  - `--vlib-ignore`: Ignore VLIB environment variable
-  - Multiple `--lib` flags supported
+#### Options
+- `--lib <path>`: Add library search path
+- `--vlib-ignore`: Ignore VLIB environment variable
+- Multiple `--lib` flags supported
 
-- **Input/Output**:
-  - `<input_file>`: Source VASM file (required)
-  - `[output_file]`: Output file (optional)
-    - Defaults to `<input>.vpp` if not specified
+### Environment Configuration
+- Set `VLIB` environment variable to specify standard library location:
+```bash
+export VLIB=/path/to/vstdlib.hasm
+```
 
-#### VPP Features:
-- **Include System**:
-  - Supports `%include` directives
-  - Recursive include resolution
-  - Library path searching
+### Error Handling
+- Source file tracking
+- Line number preservation
+- Detailed error messages with location information
+- Automatic include guard detection
 
-- **Macro Processing**:
-  - Macro definitions
-  - Macro expansion
-  - Nested macros
-
-- **Conditional Compilation**:
-  - `%ifdef/%ifndef`
-  - `%else/%elif`
-  - `%endif`
-
-- **File Management**:
-  - Automatic include guards
-  - Source file tracking
-  - Error location reporting
+### Best Practices
+1. Use include guards to prevent multiple inclusion
+2. Organize libraries in standard locations
+3. Use meaningful macro names
+4. Document macro dependencies
+5. Keep preprocessing directives at file level when possible
 
 ### Example Workflow
 ```bash
@@ -253,6 +275,115 @@ VASM standard library file.
 # 4. Disassemble bytecode for verification
 ./devasm output.vm > output.vasm
 ```
+
+# VASM Language Reference
+
+## Overview
+VASM (Virtual Assembly) is a stack-based assembly language designed for a virtual machine environment, combining low-level control with high-level safety features.
+
+## Instruction Set
+
+### Data Movement Instructions
+- `spush <value>`: Push signed integer onto stack
+- `fpush <value>`: Push floating-point number onto stack
+- `upush <value>`: Push unsigned integer onto stack
+- `pop`: Remove top element from stack
+- `pop_at <position>`: Remove element at specific position
+
+### Stack Manipulation
+- `rdup <offset>`: Duplicate element relative to stack top
+- `adup <position>`: Duplicate element at absolute position
+- `rswap <offset>`: Swap top with relative position
+- `aswap <position>`: Swap top with absolute position
+- `empty`: Check if stack is empty (pushes 0 or 1)
+
+### Arithmetic Operations
+#### Integer Operations
+- `splus`: Add signed integers (dest = dest + src)
+- `uplus`: Add unsigned integers
+- `sminus`: Subtract signed integers
+- `uminus`: Subtract unsigned integers
+- `smult`: Multiply signed integers
+- `umult`: Multiply unsigned integers
+- `sdiv`: Divide signed integers
+- `udiv`: Divide unsigned integers
+
+#### Floating-Point Operations
+- `fplus`: Add floating-point numbers
+- `fminus`: Subtract floating-point numbers
+- `fmult`: Multiply floating-point numbers
+- `fdiv`: Divide floating-point numbers
+
+### Memory Operations
+#### Load Instructions
+- `zeload8`: Load 8 bits with zero extension
+- `zeload16`: Load 16 bits with zero extension
+- `zeload32`: Load 32 bits with zero extension
+- `load64`: Load 64 bits
+- `seload8`: Load 8 bits with sign extension
+- `seload16`: Load 16 bits with sign extension
+- `seload32`: Load 32 bits with sign extension
+
+#### Store Instructions
+- `store8`: Store 8 bits to memory
+- `store16`: Store 16 bits to memory
+- `store32`: Store 32 bits to memory
+- `store64`: Store 64 bits to memory
+
+### Control Flow
+- `jmp <address>`: Unconditional jump
+- `ujmp_if <address>`: Jump if top of stack is non-zero
+- `fjmp_if <address>`: Jump if float is not zero (ε = 1e-9)
+- `call <address>`: Function call
+- `ret`: Return from function
+- `halt`: Stop execution
+- `native <function_id>`: Call native function
+
+### Comparison Operations
+#### Integer Comparisons
+- `equ`: Unsigned equality
+- `eqs`: Signed equality
+- `geu`: Unsigned greater or equal
+- `ges`: Signed greater or equal
+- `leu`: Unsigned less or equal
+- `les`: Signed less or equal
+- `gu`: Unsigned greater than
+- `gs`: Signed greater than
+- `lu`: Unsigned less than
+- `ls`: Signed less than
+
+#### Floating-Point Comparisons
+- `eqf`: Float equality
+- `gef`: Float greater or equal
+- `lef`: Float less or equal
+- `gf`: Float greater than
+- `lf`: Float less than
+
+### Type Conversion
+- `utf`: Unsigned to float
+- `stf`: Signed to float
+- `ftu`: Float to unsigned
+- `fts`: Float to signed
+- `stu`: Signed to unsigned
+- `uts`: Unsigned to signed
+
+### Bitwise Operations
+- `and`: Bitwise AND
+- `or`: Bitwise OR
+- `not`: Bitwise NOT
+- `lsr`: Logical shift right
+- `asr`: Arithmetic shift right
+- `sl`: Shift left
+
+### Directives
+- `.text`: Code section
+- `.data`: Data section
+- `.byte`: Define byte
+- `.string`: Define string
+- `.double`: Define double
+- `.word`: Define word (16-bit)
+- `.doubleword`: Define doubleword (32-bit)
+- `.quadword`: Define quadword (64-bit)
 
 ## 🔧 Technical Specifications
 
