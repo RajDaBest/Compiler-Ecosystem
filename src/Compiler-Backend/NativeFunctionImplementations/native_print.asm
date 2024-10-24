@@ -1,16 +1,3 @@
-section .bss
-stack: resq 1024
-section .data
-mul_num: dq 1000000.0
-floating_point: db "."
-L0: dq 10.8
-L1: dq 19.6
-
-section .text
-global _start
-
-; VASM Library Functions are currently statically linked
-
 print_num_rax:
     cmp rax, 0
     jnl is_non_negative
@@ -77,26 +64,3 @@ print_f64:
     call print_num_rax
     
     ret
-_start:
-    mov r15, stack + 8192
-    sub r15, 8
-    vmovsd xmm0, [L0]
-    vmovsd [r15], xmm0
-
-    sub r15, 8
-    vmovsd xmm0, [L1]
-    vmovsd [r15], xmm0
-
-    vmovsd xmm0, [r15]
-    add r15, 8
-    vaddsd xmm0, [r15]
-    vmovsd [r15], xmm0
-
-    call print_f64
-
-    sub r15, 8
-    mov QWORD [r15], 0
-
-    mov rax, 60
-    mov rdi, [r15]
-    syscall

@@ -105,52 +105,34 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
         return false;
     }
 
-    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\n", vm_stack_capacity);
+    fprintf(ctx->data_file, "section .bss\nstack: resq %zu\nsection .data\nmul_num: dq 1000000.0\nfloating_point: db \".\"\n", vm_stack_capacity);
 
     fprintf(ctx->program_file, "section .text\nglobal _start\n\n");
     fprintf(ctx->program_file, "; VASM Library Functions are currently statically linked\n\n");
 
     // VASM Library functions are linked statically, i.e, they are implemented (resolved) directly into the assembly file
 
-    fprintf(ctx->program_file, "print_number:\n"
-                               "    mov rax, [r15]\n"
-                               "    add r15, 8\n\n"
-                               "    cmp rax, 0\n"
-                               "    jnl is_non_negative\n\n"
-                               "    neg rax\n"
-                               "    mov r12, 0 ; 0 for negative\n"
-                               "    jmp intermediate\n\n"
-                               "is_non_negative:\n"
-                               "    mov r12, 1 ; 1 for non-negative\n\n"
-                               "intermediate:\n"
-                               "    dec rsp\n"
-                               "    mov byte [rsp], 10\n"
-                               "    mov r14, 1 ; counter for number of characters\n"
-                               "    mov r13, 10 ; divisor for decimal\n"
-                               "div_loop:\n"
-                               "    xor edx, edx ; zero rdx before using the division instruction\n"
-                               "    div r13\n"
-                               "    add dl, 48 ; convert numeric digit to ASCII equivalent\n"
-                               "    dec rsp\n"
-                               "    mov byte [rsp], dl\n"
-                               "    inc r14\n\n"
-                               "    test rax, rax ; test if rax is zero\n"
-                               "    jnz div_loop\n\n"
-                               "    test r12, r12 ; check if the number was negative\n"
-                               "    jz handle_negative\n"
-                               "    jmp write\n\n"
-                               "handle_negative:\n"
-                               "    dec rsp\n"
-                               "    mov byte [rsp], 45 ; add '-' for negative number\n"
-                               "    inc r14\n\n"
-                               "write:\n"
-                               "    mov rax, 1\n"
-                               "    mov rdi, 1\n"
-                               "    mov rsi, rsp\n"
-                               "    mov rdx, r14\n"
-                               "    syscall\n\n"
-                               "    add rsp, r14 ; restore the stack pointer\n"
-                               "    ret\n");
+    FILE *native_print = fopen("/home/raj/Desktop/VirtualMachine/src/Compiler-Backend/NativeFunctionImplementations/native_print.asm", "r");
+    if (native_print == NULL)
+    {
+        perror("Error retrieving native print implementations: ");
+        exit(EXIT_FAILURE); // Exit if there's an error opening the source file
+    }
+
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), native_print) != NULL)
+    {
+        if (fputs(buffer, ctx->program_file) == EOF)
+        {
+            perror("Error writing native print implementations to the output assembly file: ");
+            fclose(native_print);
+            exit(EXIT_FAILURE); // Exit on write error
+        }
+    }
+
+    fclose(native_print);
+    
+    fprintf(ctx->program_file, "\n");
 
     // the call instruction places the return address on the stack itself, so the called function must ensure that the stack it uses is cleaned up before it returns using ret
 

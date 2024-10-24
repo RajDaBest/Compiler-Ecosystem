@@ -1,20 +1,12 @@
+
 .text 
+
 _start: 
-upush 10 
+
+fpush 10.8 
+fpush 19.6 
+fplus 
+native 2 
+
 upush 0 
-native 4 
-upush 1 
-native 4 
-loop_one: 
-rdup 1 
-rdup 1 
-uplus 
-native 4 
-adup 0 
-upush 1 
-uminus 
-aswap 0 
-pop 
-adup 0 
-ujmp_if loop_one 
 halt 
