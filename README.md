@@ -194,26 +194,26 @@ make nan_clean
 
 Converts VM bytecode back to human-readable VASM format.
 
-# VPP (VASM Preprocessor)
+### VPP (VASM Preprocessor)
 
-## Overview
+### Overview
 VPP is the preprocessor for VASM files, providing macro capabilities, file inclusion, and conditional compilation features.
 
-## Features
+### Features
 
-### Include System
+#### Include System
 - Syntax: `%include "filename"`
 - Supports recursive include resolution
 - Library path searching via `--lib` option
 - Environment variable `VLIB` for standard library location
 
-### Macro System
+#### Macro System
 - Define macros: `%define MACRO_NAME value`
 - Macro expansion in code
 - Support for nested macros
 - Complex macro definitions with parameters
 
-### Conditional Compilation
+#### Conditional Compilation
 ```vasm
 %ifdef MACRO_NAME
     ; code when MACRO_NAME is defined
@@ -226,7 +226,7 @@ VPP is the preprocessor for VASM files, providing macro capabilities, file inclu
 %endif
 ```
 
-### Command Line Usage
+#### Command Line Usage
 ```bash
 vpp [OPTIONS] <input_file> [output_file]
 ```
@@ -236,26 +236,26 @@ vpp [OPTIONS] <input_file> [output_file]
 - `--vlib-ignore`: Ignore VLIB environment variable
 - Multiple `--lib` flags supported
 
-### Environment Configuration
+#### Environment Configuration
 - Set `VLIB` environment variable to specify standard library location:
 ```bash
 export VLIB=/path/to/vstdlib.hasm
 ```
 
-### Error Handling
+#### Error Handling
 - Source file tracking
 - Line number preservation
 - Detailed error messages with location information
 - Automatic include guard detection
 
-### Best Practices
+#### Best Practices
 1. Use include guards to prevent multiple inclusion
 2. Organize libraries in standard locations
 3. Use meaningful macro names
 4. Document macro dependencies
 5. Keep preprocessing directives at file level when possible
 
-### Example Workflow
+#### Example Workflow
 ```bash
 # 1. Preprocess VASM file with library support
 ./vpp --lib /usr/local/lib/vasm input.vasm input.vpp
