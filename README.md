@@ -411,6 +411,35 @@ VASM (Virtual Assembly) is a stack-based assembly language designed for a virtua
   - Instruction scheduling
   - Peephole optimizations
 
+# ⚠️ Technical Cautions
+
+## Stack Management
+- **Implicit Register Behavior**: The `swap` instruction effectively converts the stack top into an implicit register. Values can be promoted to this position and restored using consecutive `swap` operations.
+  
+- **Bounds Verification**:
+  - Stack overflow/underflow conditions are not validated during direct x86-64 compilation and execution
+  - Memory access beyond stack boundaries will trigger OS-level segmentation faults during direct x86-64 compilation and execution 
+  - Stack operation validation occurs only during VM bytecode execution, not in native compilation
+
+## Control Flow Considerations
+- **Program Termination**:
+  - The `halt` instruction is mandatory for proper program termination
+  - Absence of `halt` results in segmentation fault during direct x86-64 compilation due to instruction pointer overflow, and results in an error during VM bytecode conversion stage only
+  - `halt` uses stack top value as exit code; empty stack during `halt` triggers segmentation fault during direct x86-64 compilation, and in a stack underflow trap during VM bytecode execution
+  - Control flow must return to OS through proper termination sequence during direct x86-64 compilation
+
+## Jump Instructions
+- **Label Requirements**:
+  - Direct x86-64 compilation requires symbolic labels for `jmp`/`call` instructions
+  - VM execution supports both label-based and absolute instruction addressing
+  - Implementation of absolute instruction jumps in x86-64 would require per-instruction labels due to variable instruction encoding
+
+## Best Practices
+1. Always terminate programs with `halt` instruction and valid stack state
+2. Implement application-level bounds checking when required
+3. Consider using VM execution mode for development/testing to leverage built-in safety checks
+4. Monitor stack depth during program design to prevent overflow conditions
+
 ## 🤝 Contributing
 
 1. Fork the repository
