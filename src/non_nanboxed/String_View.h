@@ -20,6 +20,11 @@ typedef int64_t word;
 #define FAILURE 0
 #define OPERAND_OVERFLOW -1
 
+// printf macros for String_View
+#define SV_fmt "%.*s"
+#define SV_arg(sv) (int)sv.count, sv.data
+#define SV_argp(sv) (int)sv->count, sv->data
+
 int str_errno = SUCCESS;
 
 String_View cstr_as_sv(const char *cstr);

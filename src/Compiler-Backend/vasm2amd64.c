@@ -193,7 +193,7 @@ bool push_to_label_table(String_View label, CompilerContext *ctx)
         ctx->compilation_successful = false;
         return false;
     }
-
+    
     uint32_t key = hash_sv(label) % MAX_HASHTABLE_SIZE;
     label_hashnode *node = malloc(sizeof(label_hashnode));
     if (!node)
