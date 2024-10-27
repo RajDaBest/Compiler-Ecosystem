@@ -430,9 +430,7 @@ VASM (Virtual Assembly) is a stack-based assembly language designed for a virtua
 
 ## Jump Instructions
 - **Label Requirements**:
-  - Direct x86-64 compilation requires symbolic labels for `jmp`/`call` instructions
-  - VM execution supports both label-based and absolute instruction addressing
-  - Implementation of absolute instruction jumps in x86-64 would require per-instruction labels due to variable instruction encoding
+  - VM execution and x86-64 compilation supports both label-based and absolute instruction addressing
 
 ## Best Practices
 1. Always terminate programs with `halt` instruction and valid stack state
