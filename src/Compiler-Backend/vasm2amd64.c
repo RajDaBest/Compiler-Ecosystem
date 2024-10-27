@@ -20,6 +20,8 @@
 #define write 8
 
 size_t call_no = 0;
+size_t current_inst_num = 0;
+bool target_is_num = false;
 
 // the swap instruction basically converts the top of the VM stack into an implicit register; we can bring any value in the stack to the top of the
 // stack (the implicit register) using swap and work on it and put it right back into it's original place using swap again.
@@ -56,6 +58,7 @@ typedef struct
 {
     String_View label;
     size_t line_no;
+    bool target_is_num_;
 } unresolved_label_;
 
 typedef struct
@@ -193,7 +196,7 @@ bool push_to_label_table(String_View label, CompilerContext *ctx)
         ctx->compilation_successful = false;
         return false;
     }
-    
+
     uint32_t key = hash_sv(label) % MAX_HASHTABLE_SIZE;
     label_hashnode *node = malloc(sizeof(label_hashnode));
     if (!node)
@@ -246,6 +249,8 @@ uint8_t check_operand_type(String_View *operand)
 
 bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *operand)
 {
+    fprintf(ctx->program_file, "L%zu:\n", current_inst_num++);
+
     switch (inst_number)
     {
     case INST_UPUSH:
@@ -409,18 +414,39 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
 
     case INST_JMP:
     {
-        fprintf(ctx->program_file, "    jmp %.*s\n\n", (int)operand->count, operand->data);
+        if (target_is_num)
+        {
+            fprintf(ctx->program_file, "    jmp L%.*s\n\n", (int)operand->count, operand->data);
+        }
+        else
+        {
+            fprintf(ctx->program_file, "    jmp %.*s\n\n", (int)operand->count, operand->data);
+        }
+
         break;
     }
 
     case INST_CALL:
     {
-        fprintf(ctx->program_file, "    sub r15, 8\n"
-                                   "    mov qword [r15], call_%d\n"
-                                   "    jmp %.*s\n"
-                                   "call_%d:\n"
-                                   "    add r15, 8\n\n",
-                call_no, (int)operand->count, operand->data, call_no);
+        if (target_is_num)
+        {
+            fprintf(ctx->program_file, "    sub r15, 8\n"
+                                       "    mov qword [r15], call_%d\n"
+                                       "    jmp L%.*s\n"
+                                       "call_%d:\n"
+                                       "    add r15, 8\n\n",
+                    call_no, (int)operand->count, operand->data, call_no);
+        }
+        else
+        {
+            fprintf(ctx->program_file, "    sub r15, 8\n"
+                                       "    mov qword [r15], call_%d\n"
+                                       "    jmp %.*s\n"
+                                       "call_%d:\n"
+                                       "    add r15, 8\n\n",
+                    call_no, (int)operand->count, operand->data, call_no);
+        }
+
         call_no++;
         break;
     }
@@ -583,19 +609,40 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
 
     case INST_UJMP_IF:
     {
-        fprintf(ctx->program_file, "    cmp qword [r15], 0\n"
-                                   "    jne %.*s\n\n",
-                (int)operand->count, operand->data);
+        if (target_is_num)
+        {
+            fprintf(ctx->program_file, "    cmp qword [r15], 0\n"
+                                       "    jne L%.*s\n\n",
+                    (int)operand->count, operand->data);
+        }
+        else
+        {
+            fprintf(ctx->program_file, "    cmp qword [r15], 0\n"
+                                       "    jne %.*s\n\n",
+                    (int)operand->count, operand->data);
+        }
         break;
     }
 
     case INST_FJMP_IF:
     {
-        fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
-                                   "    vxorpd xmm1, xmm1 ; bitwise xor the register contents\n"
-                                   "    vucomisd xmm0, xmm1\n ; cmp equivalent for double-precision floating points"
-                                   "    jne %.*s\n\n",
-                (int)operand->count, operand->data);
+        if (target_is_num)
+        {
+            fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                       "    vxorpd xmm1, xmm1 ; bitwise xor the register contents\n"
+                                       "    vucomisd xmm0, xmm1\n ; cmp equivalent for double-precision floating points"
+                                       "    jne L%.*s\n\n",
+                    (int)operand->count, operand->data);
+        }
+        else
+        {
+            fprintf(ctx->program_file, "    movsd xmm0, [r15]\n"
+                                       "    vxorpd xmm1, xmm1 ; bitwise xor the register contents\n"
+                                       "    vucomisd xmm0, xmm1\n ; cmp equivalent for double-precision floating points"
+                                       "    jne %.*s\n\n",
+                    (int)operand->count, operand->data);
+        }
+
         break;
     }
 
@@ -635,6 +682,8 @@ bool handle_instruction(CompilerContext *ctx, size_t inst_number, String_View *o
                  ctx->line_no, inst_number);
         return false;
     }
+
+    target_is_num = false;
     return true;
 }
 
@@ -833,6 +882,8 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                     }
                     ctx->unresolved_labels[ctx->unresolved_labels_counter].label = *line;
                     ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
+                    ctx->unresolved_labels[ctx->unresolved_labels_counter].target_is_num_ = false;
+
                     ctx->unresolved_labels_counter++;
                 }
                 return true;
@@ -841,28 +892,54 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
             {
                 if (i == INST_CALL || i == INST_JMP || i == INST_FJMP_IF || i == INST_UJMP_IF)
                 {
-                    if (operand_type != TYPE_INVALID)
+                    if (operand_type == TYPE_SIGNED_64INT)
                     {
                         snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
                                  "Line Number %zu -> ERROR: illegal operand value for %s instruction: %.*s\n"
-                                 "Must be a label",
+                                 "Must be a label/unsigned 64 bit integer",
                                  ctx->line_no, get_inst_name(i), (int)line->count, line->data);
                         return false;
                     }
-
-                    if (ctx->unresolved_labels_counter >= label_capacity)
+                    else if (operand_type == TYPE_UNSIGNED_64INT)
                     {
-                        snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
-                                 "Line Number %zu -> ERROR: Too many unresolved labels",
-                                 ctx->line_no);
-                        return false;
-                    }
-                    ctx->unresolved_labels[ctx->unresolved_labels_counter].label = *line;
-                    ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
-                    ctx->unresolved_labels_counter++;
+                        if (ctx->unresolved_labels_counter >= label_capacity)
+                        {
+                            snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
+                                     "Line Number %zu -> ERROR: Too many unresolved bindings",
+                                     ctx->line_no);
+                            return false;
+                        }
 
-                    if (!handle_instruction(ctx, i, line))
-                        return false;
+                        char str[128];
+                        snprintf(str, 128, "L%.*s", (int)line->count, line->data);
+
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].label = cstr_as_sv(str);
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].target_is_num_ = true;
+                        ctx->unresolved_labels_counter++;
+
+                        target_is_num = true;
+                        if (!handle_instruction(ctx, i, line))
+                            return false;
+                    }
+                    else
+                    {
+                        if (ctx->unresolved_labels_counter >= label_capacity)
+                        {
+                            snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
+                                     "Line Number %zu -> ERROR: Too many unresolved labels",
+                                     ctx->line_no);
+                            return false;
+                        }
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].label = *line;
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].target_is_num_ = false;
+
+                        ctx->unresolved_labels_counter++;
+
+                        if (!handle_instruction(ctx, i, line))
+                            return false;
+                    }
                 }
                 else
                 {
@@ -890,6 +967,8 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                         }
                         ctx->unresolved_labels[ctx->unresolved_labels_counter].label = *line;
                         ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
+                        ctx->unresolved_labels[ctx->unresolved_labels_counter].target_is_num_ = false;
+
                         ctx->unresolved_labels_counter++;
                     }
                 }
@@ -908,6 +987,8 @@ bool handle_code_line(CompilerContext *ctx, String_View *line)
                     }
                     ctx->unresolved_labels[ctx->unresolved_labels_counter].label = *line;
                     ctx->unresolved_labels[ctx->unresolved_labels_counter].line_no = ctx->line_no;
+                    ctx->unresolved_labels[ctx->unresolved_labels_counter].target_is_num_ = false;
+
                     ctx->unresolved_labels_counter++;
                 }
                 else
@@ -1000,17 +1081,52 @@ bool process_source_file(CompilerContext *ctx, const char *input_file)
     }
 
     // Check for unresolved labels
+    bool has_unresolved = false;
     for (size_t i = 0; i < ctx->unresolved_labels_counter; i++)
     {
         if (!search_in_label_table(ctx->unresolved_labels[i].label))
         {
-            snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
-                     "Line No: %zu -> ERROR: Undefined label: '%.*s'",
-                     ctx->unresolved_labels[i].line_no,
-                     (int)ctx->unresolved_labels[i].label.count,
-                     ctx->unresolved_labels[i].label.data);
-            return false;
+            if (ctx->unresolved_labels[i].target_is_num_)
+            {
+                snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
+                         "Line No: %zu -> ERROR: Invalid VASM instruction number: '%.*s'",
+                         ctx->unresolved_labels[i].line_no,
+                         (int)ctx->unresolved_labels[i].label.count - 2,
+                         ctx->unresolved_labels[i].label.data + 2);
+            }
+            else
+            {
+                snprintf(ctx->error_buffer, ERROR_BUFFER_SIZE,
+                         "Line No: %zu -> ERROR: Undefined label: '%.*s'",
+                         ctx->unresolved_labels[i].line_no,
+                         (int)ctx->unresolved_labels[i].label.count,
+                         ctx->unresolved_labels[i].label.data);
+            }
+            has_unresolved = true;
         }
+    }
+
+    if (!search_in_label_table(cstr_as_sv("_start")))
+    {
+        fprintf(stderr, "_start not found in the VASM source file; Defaulting to the first VASM instruction\n");
+        if (current_inst_num >= 0)
+        {
+            size_t offset = vm_stack_capacity * sizeof(uint64_t);
+            fprintf(ctx->program_file, "_start:\n"
+                                       "    mov r15, stack + %zu\n"
+                                       "    jmp L0",
+                    offset);
+        }
+        else
+        {
+            fprintf(stderr, "The source file has no VASM instructions, cannot default\n");
+            has_unresolved = true;
+        }
+    }
+
+    if (has_unresolved)
+    {
+        return false;
     }
 
     return true;

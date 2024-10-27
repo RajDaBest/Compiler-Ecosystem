@@ -1,10 +1,8 @@
 section .bss
 stack: resq 1024
 section .data
-mul_num: dq 1000000.0
+mul_num: dq 100000000.0
 floating_point: db "."
-L0: dq 10.8
-L1: dq 19.6
 
 section .text
 global _start
@@ -63,6 +61,10 @@ print_f64:
     vmulsd xmm1, xmm1, qword [mul_num]
     vcvtsd2si rbx, xmm1 ; rbx contains the fractional part
 
+    cmp rbx, 0
+    jge skip_neg_frac ; handle if the fractional part comes out to be negative by the virtue of the number being negative
+    neg rbx
+skip_neg_frac:
     mov r11, 1
     call print_num_rax
 
@@ -77,26 +79,24 @@ print_f64:
     call print_num_rax
     
     ret
-_start:
-    mov r15, stack + 8192
+hello:
+L0:
     sub r15, 8
-    vmovsd xmm0, [L0]
-    vmovsd [r15], xmm0
+    mov QWORD [r15], 10
 
+L1:
     sub r15, 8
-    vmovsd xmm0, [L1]
-    vmovsd [r15], xmm0
+    mov QWORD [r15], 20
 
-    vmovsd xmm0, [r15]
+L2:
+    mov rax, [r15]
     add r15, 8
-    vaddsd xmm0, [r15]
-    vmovsd [r15], xmm0
+    add [r15], rax
 
-    call print_f64
-
-    sub r15, 8
-    mov QWORD [r15], 0
-
+L3:
     mov rax, 60
     mov rdi, [r15]
     syscall
+_start:
+    mov r15, stack + 8192
+    jmp L0

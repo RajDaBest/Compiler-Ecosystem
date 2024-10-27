@@ -1101,8 +1101,8 @@ void vm_init(VirtualMachine *vm, char *source_code)
     }
     else
     {
-        fprintf(stderr, "ERROR: 'start' not found in %s\n", source_code);
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "ERROR: '_start' not found in %s; Defaulting to the first VASM instruction\n", source_code);
+        vm->instruction_poninter = 0;
     }
     vm->stack_size = 0;
     vm->halt = 0;
