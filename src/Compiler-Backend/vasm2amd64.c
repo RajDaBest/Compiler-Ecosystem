@@ -115,7 +115,7 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
 
     // VASM Library functions are linked statically, i.e, they are implemented (resolved) directly into the assembly file
 
-    FILE *native_print = fopen("/home/raj/Desktop/VirtualMachine/src/Compiler-Backend/NativeFunctionImplementations/native_print.asm", "r");
+    FILE *native_print = fopen("./NativeFunctionImplementations/native_print.asm", "r");
     if (native_print == NULL)
     {
         perror("Error retrieving native print implementations: ");
