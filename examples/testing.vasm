@@ -1,13 +1,9 @@
-%include <vstdlib.hasm>
 
-.text
+.text 
 
-_start:
-
-fpush 10.8
-fpush 19.6
-fplus
-native print_f64
-
-upush 0
-halt
+upush 10 
+upush 10 
+uplus 
+native 4 
+upush 0 
+halt 

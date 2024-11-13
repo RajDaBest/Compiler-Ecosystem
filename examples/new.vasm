@@ -1,8 +1,0 @@
-.text
-
-hello:
-
-    upush 10
-    upush 20
-    uplus
-    halt

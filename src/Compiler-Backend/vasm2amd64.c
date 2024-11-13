@@ -19,6 +19,10 @@
 #define read 7
 #define write 8
 
+#ifndef PATH_TO_NATIVE
+#define PATH_TO_NATIVE "/home/raj/Desktop/VirtualMachine/src/Compiler-Backend/NativeFunctionImplementations/native_print.asm"
+#endif
+
 size_t call_no = 0;
 size_t current_inst_num = 0;
 bool target_is_num = false;
@@ -115,10 +119,11 @@ bool init_compiler_context(CompilerContext *ctx, const char *output_file)
 
     // VASM Library functions are linked statically, i.e, they are implemented (resolved) directly into the assembly file
 
-    FILE *native_print = fopen("./NativeFunctionImplementations/native_print.asm", "r");
+    FILE *native_print = fopen(PATH_TO_NATIVE, "r");
     if (native_print == NULL)
     {
         perror("Error retrieving native print implementations: ");
+        fprintf(stderr, "Set the path to native implementations while invoking the compiler as:\n -DPATH_TO_NATIVE=/your/path\n");
         exit(EXIT_FAILURE); // Exit if there's an error opening the source file
     }
 

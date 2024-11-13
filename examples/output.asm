@@ -79,14 +79,13 @@ skip_neg_frac:
     call print_num_rax
     
     ret
-hello:
 L0:
     sub r15, 8
     mov QWORD [r15], 10
 
 L1:
     sub r15, 8
-    mov QWORD [r15], 20
+    mov QWORD [r15], 10
 
 L2:
     mov rax, [r15]
@@ -94,6 +93,14 @@ L2:
     add [r15], rax
 
 L3:
+    mov r11, 0
+    call print_number
+
+L4:
+    sub r15, 8
+    mov QWORD [r15], 0
+
+L5:
     mov rax, 60
     mov rdi, [r15]
     syscall
