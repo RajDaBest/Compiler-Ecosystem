@@ -11,7 +11,7 @@
 
 ## 📖 Overview
 
-The Compiler Ecosystem is a sophisticated toolchain designed for converting self-developed VASM (Virtual Assembly) language code into executable binaries or bytecode. It provides a complete development environment for VASM programming, from source to execution.
+This Compiler Toolchain is a sophisticated toolchain designed for converting self-developed VASM (Virtual Assembly) language code into executable binaries or bytecode. It provides a complete development environment for VASM programming, from source to execution.
 
 ### 🎯 Key Components
 
