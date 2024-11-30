@@ -1,9 +1,12 @@
 
 .text 
 
+_start: 
+
 upush 10 
 upush 10 
+upush 100 
 uplus 
 native 4 
-upush 0 
+upush 1 
 halt 

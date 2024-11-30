@@ -79,6 +79,8 @@ skip_neg_frac:
     call print_num_rax
     
     ret
+_start:
+    mov r15, stack + 8192
 L0:
     sub r15, 8
     mov QWORD [r15], 10
@@ -88,22 +90,24 @@ L1:
     mov QWORD [r15], 10
 
 L2:
+    sub r15, 8
+    mov QWORD [r15], 100
+
+L3:
     mov rax, [r15]
     add r15, 8
     add [r15], rax
 
-L3:
-    mov r11, 0
-    call print_number
-
 L4:
-    sub r15, 8
-    mov QWORD [r15], 0
+    mov r11, 0
+mov rax, [r15]
+    call print_num_rax
 
 L5:
+    sub r15, 8
+    mov QWORD [r15], 1
+
+L6:
     mov rax, 60
     mov rdi, [r15]
     syscall
-_start:
-    mov r15, stack + 8192
-    jmp L0
